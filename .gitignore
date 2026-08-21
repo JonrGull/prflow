@@ -1,0 +1,6 @@
+# Binaries
+/prflow
+*.exe
+
+# Local Claude Code settings (machine-specific paths and permissions)
+.claude/settings.local.json
