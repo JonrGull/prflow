@@ -6,8 +6,6 @@ Define the chain a release moves through — `dev → staging → main`, or what
 your team actually uses — and prflow opens, tracks and merges the PRs for each
 step across every repo at once.
 
-https://github.com/user-attachments/assets/f6b93fa7-643f-49ad-b3aa-c249e6534c21
-
 ## Install
 
 ### Prerequisites
