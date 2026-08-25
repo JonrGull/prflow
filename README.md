@@ -10,6 +10,13 @@ step across every repo at once.
 
 *Recorded with `--dry-run`, so every repo, commit and PR above is fixture data.*
 
+<details>
+<summary>Watch with player controls (pause, scrub, fullscreen)</summary>
+
+https://github.com/user-attachments/assets/6659fe81-e72c-4989-9f92-9b6df784bc4f
+
+</details>
+
 ## Install
 
 ### Prerequisites
