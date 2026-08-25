@@ -139,8 +139,11 @@ const (
 	configName       = "prflow.toml"
 	legacyConfigName = "attpr.toml"
 
-	// updateRepo is where self-update looks for releases.
-	updateRepo = "JonrGull/prflow"
+	// updateRepo is where self-update looks for releases. legacyUpdateRepo is
+	// the repo the tool was forked from, which still publishes releases of its
+	// own under higher version numbers.
+	updateRepo       = "JonrGull/prflow"
+	legacyUpdateRepo = "someone/the-old-tool"
 )
 
 func configPath() (string, error) {
@@ -228,6 +231,14 @@ func Load() (*Config, error) {
 		cfg.Paths.ReposDir = defaultReposDir
 	}
 	cfg.Paths.LegacyDir = "" // omitempty drops it on the next write
+
+	// A config carried over from before the fork still points self-update at
+	// the upstream repo, whose releases are a different tool on a higher
+	// version line, so it offered an "update" that would replace prflow with
+	// attpr on every launch.
+	if cfg.Update.Repo == legacyUpdateRepo || cfg.Update.Repo == "" {
+		cfg.Update.Repo = updateRepo
+	}
 
 	// Migrate deprecated RepoEntry.Category → Group
 	for i := range cfg.Repos {

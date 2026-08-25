@@ -148,3 +148,47 @@ func TestMissingRepoDirErrorNamesTheCurrentKey(t *testing.T) {
 		t.Errorf("error still names the pre-rename key: %v", err)
 	}
 }
+
+// The fork inherited the upstream's config, which points self-update at the
+// upstream repo. Its releases are a different tool on a higher version line,
+// so every launch offered an "update" that would have replaced prflow with
+// attpr.
+func TestLoadRepointsThePreForkUpdateRepo(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+
+	current := filepath.Join(dir, configName)
+	body := "[update]\nenabled = true\nrepo = '" + legacyUpdateRepo + "'\n"
+	if err := os.WriteFile(current, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Update.Repo != updateRepo {
+		t.Errorf("update repo = %q, want %q", cfg.Update.Repo, updateRepo)
+	}
+}
+
+// A repo the user chose themselves is theirs to keep.
+func TestLoadKeepsACustomUpdateRepo(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+
+	current := filepath.Join(dir, configName)
+	if err := os.WriteFile(current, []byte("[update]\nrepo = 'someone/else'\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Update.Repo != "someone/else" {
+		t.Errorf("update repo = %q, want the file's own value", cfg.Update.Repo)
+	}
+}
