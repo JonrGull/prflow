@@ -108,7 +108,7 @@ func FindUserByDisplayName(apiKey, displayName string) (string, error) {
 	return data.Users.Nodes[0].ID, nil
 }
 
-// FindIssueID looks up a Linear issue by identifier (e.g. "ATT-1234") and returns its UUID
+// FindIssueID looks up a Linear issue by identifier (e.g. "PROJ-1234") and returns its UUID
 func FindIssueID(apiKey, identifier string) (string, error) {
 	resp, err := doQuery(apiKey, graphqlRequest{
 		Query:     `query($id: String!) { issue(id: $id) { id } }`,
@@ -167,13 +167,13 @@ func SubscribeUserToIssue(apiKey, issueID, userID string) error {
 }
 
 // FetchTicketTitles batch-queries Linear for issue titles by identifier.
-// Returns map like {"ATT-1234": "Fix login redirect"}. Missing issues are omitted.
+// Returns map like {"PROJ-1234": "Fix login redirect"}. Missing issues are omitted.
 func FetchTicketTitles(apiKey string, identifiers []string) map[string]string {
 	if len(identifiers) == 0 {
 		return nil
 	}
 
-	// Build a single query with aliased issue() calls: { i0: issue(id:"ATT-1234") { ... } i1: ... }
+	// Build a single query with aliased issue() calls: { i0: issue(id:"PROJ-1234") { ... } i1: ... }
 	var b strings.Builder
 	b.WriteString("{ ")
 	for i, id := range identifiers {
@@ -186,7 +186,7 @@ func FetchTicketTitles(apiKey string, identifiers []string) map[string]string {
 		return nil
 	}
 
-	// Response is { "i0": { "identifier": "ATT-1234", "title": "..." }, "i1": ... }
+	// Response is { "i0": { "identifier": "PROJ-1234", "title": "..." }, "i1": ... }
 	var data map[string]*struct {
 		Identifier string `json:"identifier"`
 		Title      string `json:"title"`

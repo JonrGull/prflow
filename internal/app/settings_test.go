@@ -42,7 +42,7 @@ func TestSettingsRejectsInvalidTicketPattern(t *testing.T) {
 	original := m.config.Tickets.Pattern
 
 	m.settings.editing = true
-	m.settings.editValue = "ATT-[0-9" // unclosed class
+	m.settings.editValue = "PROJ-[0-9" // unclosed class
 	m.commitSettingsEdit()
 
 	if m.config.Tickets.Pattern != original {
@@ -151,7 +151,7 @@ func TestSettingsEditingSwallowsGlobalKeys(t *testing.T) {
 		m.settings.editing = true
 		m.settings.editValue = ""
 
-		const want = "ATT-[0-9]+"
+		const want = "PROJ-[0-9]+"
 		for _, r := range want {
 			m = typeRune(m, r)
 		}

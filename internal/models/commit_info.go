@@ -6,7 +6,7 @@ type CommitInfo struct {
 	Hash string
 	// Message is the first line of commit message
 	Message string
-	// Tickets are Linear ticket IDs found in the message (e.g., ["ATT-123", "ATT-456"])
+	// Tickets are Linear ticket IDs found in the message (e.g., ["PROJ-123", "PROJ-456"])
 	Tickets []string
 }
 

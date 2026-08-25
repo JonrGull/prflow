@@ -142,7 +142,7 @@ func (m Model) menuInfoDetails() ui.MenuInfoDetails {
 }
 
 // ticketExample turns a ticket regex into something readable for the info
-// panel — "ATT-[0-9]+" reads better as "ATT-123" than as the raw pattern.
+// panel — "PROJ-[0-9]+" reads better as "PROJ-123" than as the raw pattern.
 func ticketExample(pattern string) string {
 	if pattern == "" {
 		return "disabled"

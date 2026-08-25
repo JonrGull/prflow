@@ -498,9 +498,9 @@ func populatedModel() Model {
 	repo := repos[0]
 
 	commits := []models.CommitInfo{
-		models.NewCommitInfo("abc1234", "ATT-1234 Fix the ⚠ redirect", []string{"ATT-1234"}),
+		models.NewCommitInfo("abc1234", "PROJ-1234 Fix the ⚠ redirect", []string{"PROJ-1234"}),
 		models.NewCommitInfo("def5678", "日本語のコミットメッセージ 🚀", nil),
-		models.NewCommitInfo("aaa9999", "ATT-5678 Tidy up", []string{"ATT-5678"}),
+		models.NewCommitInfo("aaa9999", "PROJ-5678 Tidy up", []string{"PROJ-5678"}),
 	}
 
 	m := Model{
@@ -513,7 +513,7 @@ func populatedModel() Model {
 		repoInfo: &repo,
 		flow:     &firstFlow,
 		commits:  commits,
-		tickets:  []string{"ATT-1234", "ATT-5678"},
+		tickets:  []string{"PROJ-1234", "PROJ-5678"},
 		prTitle:  "Sprint # 42 — release ✦",
 		prURL:    "https://github.com/acme/web-app/pull/101",
 
@@ -542,7 +542,7 @@ func populatedModel() Model {
 	m.batch.existingPRs = 1
 	m.batch.reposWithCommits = 3
 	m.batch.results = []models.BatchResult{
-		{Repo: repos[0], Status: models.Created, PrURL: strptr("https://github.com/acme/web-app/pull/101"), PrNumber: 101, Tickets: []string{"ATT-1234"}},
+		{Repo: repos[0], Status: models.Created, PrURL: strptr("https://github.com/acme/web-app/pull/101"), PrNumber: 101, Tickets: []string{"PROJ-1234"}},
 		{Repo: repos[1], Status: models.Updated, PrURL: strptr("https://github.com/acme/api/pull/55"), PrNumber: 55},
 		{Repo: repos[2], Status: models.Skipped("no commits"), PrNumber: 0},
 		{Repo: repos[3], Status: models.Failed("branch not found on remote"), PrNumber: 0},
@@ -586,10 +586,10 @@ func populatedModel() Model {
 
 	// QA tagging
 	m.qa.selected = []bool{true, false}
-	m.qa.titles = map[string]string{"ATT-1234": "Fix login redirect", "ATT-5678": "日本語 のタイトル"}
+	m.qa.titles = map[string]string{"PROJ-1234": "Fix login redirect", "PROJ-5678": "日本語 のタイトル"}
 	m.qa.results = []linear.QaTagResult{
-		{Ticket: "ATT-1234", Success: true},
-		{Ticket: "ATT-5678", Success: false, Error: "issue not found"},
+		{Ticket: "PROJ-1234", Success: true},
+		{Ticket: "PROJ-5678", Success: false, Error: "issue not found"},
 	}
 
 	// Actions

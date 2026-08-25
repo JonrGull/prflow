@@ -46,10 +46,11 @@ func TestRevealRunes(t *testing.T) {
 }
 
 // The main menu describes what the tool will do, so it has to describe the
-// user's actual config. It previously asserted "ATT-XXX" as a literal.
+// user's actual config. It previously asserted one project's key as a
+// literal.
 func TestTicketExample(t *testing.T) {
 	tests := map[string]string{
-		"ATT-[0-9]+":  "ATT-123",
+		"ACME-[0-9]+": "ACME-123",
 		`PROJ-\d+`:    "PROJ-123",
 		"JIRA-[0-9]+": "JIRA-123",
 		"":            "disabled",

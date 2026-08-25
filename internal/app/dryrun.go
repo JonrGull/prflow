@@ -47,13 +47,13 @@ func dryRunCommits() fetchCommitsResult {
 	time.Sleep(dryRunLong)
 	return fetchCommitsResult{
 		commits: []models.CommitInfo{
-			{Hash: "abc1234", Message: "feat: Add new dashboard component", Tickets: []string{"ATT-1234"}},
-			{Hash: "def5678", Message: "fix: Resolve authentication bug", Tickets: []string{"ATT-1235"}},
+			{Hash: "abc1234", Message: "feat: Add new dashboard component", Tickets: []string{"PROJ-1234"}},
+			{Hash: "def5678", Message: "fix: Resolve authentication bug", Tickets: []string{"PROJ-1235"}},
 			{Hash: "ghi9012", Message: "chore: Update dependencies", Tickets: []string{}},
-			{Hash: "jkl3456", Message: "feat: Implement user settings page", Tickets: []string{"ATT-1236", "ATT-1237"}},
+			{Hash: "jkl3456", Message: "feat: Implement user settings page", Tickets: []string{"PROJ-1236", "PROJ-1237"}},
 			{Hash: "mno7890", Message: "docs: Update README with new instructions", Tickets: []string{}},
 		},
-		tickets: []string{"ATT-1234", "ATT-1235", "ATT-1236", "ATT-1237"},
+		tickets: []string{"PROJ-1234", "PROJ-1235", "PROJ-1236", "PROJ-1237"},
 	}
 }
 
@@ -80,7 +80,7 @@ func dryRunBatchCommits(repos []models.RepoInfo, selected []bool) batchCommitsRe
 		}
 	}
 	return batchCommitsResult{
-		tickets:          []string{"ATT-1234", "ATT-1235", "ATT-1236"},
+		tickets:          []string{"PROJ-1234", "PROJ-1235", "PROJ-1236"},
 		existingPRs:      1,
 		reposWithCommits: selectedCount,
 	}
@@ -96,8 +96,8 @@ func dryRunRepoCommits(idx int) []models.CommitInfo {
 		return nil
 	}
 	return []models.CommitInfo{
-		{Hash: "abc1234", Message: "feat: Add new feature", Tickets: []string{"ATT-1234"}},
-		{Hash: "def5678", Message: "fix: Bug fix", Tickets: []string{"ATT-1235"}},
+		{Hash: "abc1234", Message: "feat: Add new feature", Tickets: []string{"PROJ-1234"}},
+		{Hash: "def5678", Message: "fix: Bug fix", Tickets: []string{"PROJ-1235"}},
 	}
 }
 
@@ -131,8 +131,8 @@ func dryRunOpenPRs(flows []models.Flow) openPRsFetchedResult {
 	repos := dryRunRepos()
 
 	bodies := []string{
-		"# Tickets\n\n### - Closes [ATT-1234](https://linear.app/example/issue/att-1234)\n### - Closes [ATT-5678](https://linear.app/example/issue/att-5678)",
-		"# Tickets\n\n### - Closes [ATT-1234](https://linear.app/example/issue/att-1234)",
+		"# Tickets\n\n### - Closes [PROJ-1234](https://linear.app/example/issue/proj-1234)\n### - Closes [PROJ-5678](https://linear.app/example/issue/proj-5678)",
+		"# Tickets\n\n### - Closes [PROJ-1234](https://linear.app/example/issue/proj-1234)",
 	}
 
 	// steps builds a status carrying a PR on the first withPR steps and none on

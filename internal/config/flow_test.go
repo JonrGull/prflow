@@ -62,13 +62,13 @@ func TestDefaultsCarryNoOrganisationSpecificValues(t *testing.T) {
 		t.Fatalf("default ticket pattern does not compile: %v", err)
 	}
 	re := cfg.TicketRegex()
-	for _, id := range []string{"ATT-1234", "ENG-7", "PROJ2-99"} {
+	for _, id := range []string{"ACME-1234", "ENG-7", "PROJ2-99"} {
 		if !re.MatchString(id) {
 			t.Errorf("default pattern does not match %q", id)
 		}
 	}
 	// Case-insensitively, by design — a commit may write the key in lower case.
-	if !re.MatchString("fixes att-1234") {
+	if !re.MatchString("fixes acme-1234") {
 		t.Error("default pattern should match a lowercase key")
 	}
 	// The known cost of a prefix-agnostic default, recorded rather than

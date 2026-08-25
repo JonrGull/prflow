@@ -105,7 +105,7 @@ func TestKeyHintsDynamic(t *testing.T) {
 		}
 		withCommits := Model{screen: ScreenCommitReview}
 		withCommits.commits = []models.CommitInfo{
-			models.NewCommitInfo("abc1234", "ATT-1 do a thing", nil),
+			models.NewCommitInfo("abc1234", "PROJ-1 do a thing", nil),
 		}
 		want := "Type:Edit title Enter:Create PR Esc:Back"
 		if got := hintString(withCommits); got != want {
