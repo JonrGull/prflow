@@ -170,7 +170,7 @@ func (m Model) renderFirstRun() string {
 		lines = append(lines, m.renderFirstRunFound()...)
 	}
 
-	return panel(ui.CyanBold, "👋  Welcome", lines)
+	return panel(ui.CyanBold, "Welcome", lines)
 }
 
 // renderFirstRunFound lists what the scan turned up, grouped, so the user can

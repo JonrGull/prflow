@@ -270,7 +270,7 @@ func (m Model) reviewStatusIcon(status string) string {
 	case "unresponded":
 		return ui.Red.Render("✗")
 	case "pending":
-		return ui.Yellow.Render("⏳")
+		return ui.Yellow.Render("○")
 	default:
 		return ui.Dim.Render("—")
 	}
@@ -304,7 +304,7 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 	const (
 		indent   = 4
 		prNumW   = 7 // "#1234  "
-		commentW = 8 // "💬15(3) "
+		commentW = 8 // "15(3)   "
 		revW     = 4 // " ⚠  "
 		ciW      = 4 // " ✓  "
 		prevW    = 5 // " ✓   "
@@ -338,7 +338,7 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 	dimStyle := ui.Dim
 	legendPad := strings.Repeat(" ", 2+prNumW+2+titleW+branchW) // 2=row indent, prNumW+2=draft prefix+prNum
 	legend := legendPad + dimStyle.Render(
-		visPad("💬", commentW)+
+		visPad("Cmt", commentW)+
 			visPad("Rev", revW)+
 			visPad("CI", ciW)+
 			visPad("Prev", prevW)+
@@ -396,7 +396,7 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 			if entry.PR.IsDraft {
 				draftStyle := ui.Dim
 				if highlighted {
-					draftStyle = draftStyle.Background(bg)
+					draftStyle = ui.White.Background(bg)
 				}
 				draftPrefix = draftStyle.Render("◇ ")
 			}
@@ -405,12 +405,15 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 			prNum := fmt.Sprintf("#%d", entry.PR.Number)
 			col1 := visPad(draftPrefix+sPrNum.Render(prNum), prNumW+2) // +2 for draft prefix
 
-			// Title — truncate then pad; dim for drafts
+			// Title — truncate then pad; dim for drafts, but brightened when
+			// highlighted: the dim foreground is ColorDarkGray, which is also
+			// the highlight background, so a selected draft drew its title
+			// invisibly.
 			titleStyle := sTitle
 			if entry.PR.IsDraft {
 				titleStyle = ui.Dim
 				if highlighted {
-					titleStyle = titleStyle.Background(bg)
+					titleStyle = ui.White.Background(bg)
 				}
 			}
 			title := truncateString(entry.PR.Title, titleW-1)
@@ -427,12 +430,12 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 			// Comment count — styled, then visually padded
 			var commentRaw string
 			if entry.CommentCount == 0 {
-				commentRaw = sDim.Render("💬0")
+				commentRaw = sDim.Render("0")
 			} else if entry.UnrespondedCount > 0 {
-				commentRaw = sComment.Render(fmt.Sprintf("💬%d", entry.CommentCount)) +
+				commentRaw = sComment.Render(fmt.Sprintf("%d", entry.CommentCount)) +
 					sRed.Render(fmt.Sprintf("(%d)", entry.UnrespondedCount))
 			} else {
-				commentRaw = sGreen.Render(fmt.Sprintf("💬%d", entry.CommentCount))
+				commentRaw = sGreen.Render(fmt.Sprintf("%d", entry.CommentCount))
 			}
 			col4 := visPad(commentRaw, commentW)
 
@@ -473,7 +476,7 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 	lYellow := ui.Yellow
 	lRed := ui.Red
 	sep := dimStyle.Render("  │  ")
-	legendLine := dimStyle.Render("💬 N") +
+	legendLine := dimStyle.Render("Cmt N") +
 		dimStyle.Render(" total  ") +
 		lRed.Render("(N)") + dimStyle.Render(" unresponded") +
 		sep +
@@ -481,7 +484,7 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 		lGreen.Render("✓") + dimStyle.Render(" reviewed  ") +
 		lYellow.Render("⚠") + dimStyle.Render(" stale  ") +
 		lRed.Render("✗") + dimStyle.Render(" unresponded  ") +
-		lYellow.Render("⏳") + dimStyle.Render(" pending") +
+		lYellow.Render("○") + dimStyle.Render(" pending") +
 		sep +
 		dimStyle.Render("CI/Preview Env: ") +
 		lGreen.Render("✓") + dimStyle.Render(" pass  ") +

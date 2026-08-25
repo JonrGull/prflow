@@ -33,7 +33,7 @@ var flowColumnColors = []lipgloss.Color{
 
 // flowColumnMarkers pair with flowColumnColors for terminals where the box
 // border colour alone is hard to tell apart.
-var flowColumnMarkers = []string{"🟢", "🔴", "🟡", "🟣", "🔵", "⚪"}
+var flowColumnMarkers = []string{"●", "■", "▲", "◆", "○", "□"}
 
 func flowChainColor(i int) lipgloss.Color  { return flowChainColors[i%len(flowChainColors)] }
 func flowColumnColor(i int) lipgloss.Color { return flowColumnColors[i%len(flowColumnColors)] }

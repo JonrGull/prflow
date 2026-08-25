@@ -284,6 +284,14 @@ func screenCases() []screenCase {
 	pinned.actions.column = 1
 	cases = append(cases, screenCase{"actions_pinned_column", ScreenActionsOverview, pinned})
 
+	// A draft PR on the highlighted row. Drafts render dim, and the dim colour
+	// is ColorDarkGray — which is also the highlight background, so a selected
+	// draft used to draw its title invisibly.
+	draftRow := populatedModel()
+	draftRow.allPRs.entries[0].PR.IsDraft = true
+	draftRow.allPRs.index = 0
+	cases = append(cases, screenCase{"view_all_prs_draft_highlighted", ScreenViewAllPrs, draftRow})
+
 	// A three-step chain. Nothing else in the suite leaves the default pair, so
 	// without these two the N-column layout and the derived step descriptions
 	// are only ever exercised at the one width that used to be hardcoded.

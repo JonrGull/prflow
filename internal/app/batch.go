@@ -692,8 +692,8 @@ var batchColumnStyle = [2]struct {
 	Icon  string
 	Color lipgloss.Color
 }{
-	0: {"🖥️", ui.ColorCyan},
-	1: {"⚙️", ui.ColorMagenta},
+	0: {"●", ui.ColorCyan},
+	1: {"◆", ui.ColorMagenta},
 }
 
 // renderBatchRepoColumn builds one column of the batch repo selector, and
@@ -954,7 +954,7 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 
 	labelStyle := ui.White
 	titleStyle := ui.WhiteBold
-	leftLines = append(leftLines, fmt.Sprintf("  📝 %s %s", labelStyle.Render("Title:"), titleStyle.Render(m.prTitle)))
+	leftLines = append(leftLines, fmt.Sprintf("  %s %s", labelStyle.Render("Title:"), titleStyle.Render(m.prTitle)))
 	leftLines = append(leftLines, "")
 
 	// Repos section
@@ -1014,9 +1014,9 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 	}
 
 	leftTitleStyle := ui.CyanBold
-	panelTitle := " 🚀 Batch PRs "
+	panelTitle := " Batch PRs "
 	if m.batch.existingPRs == selectedCount {
-		panelTitle = " 🔄 Update PRs "
+		panelTitle = " Update PRs "
 	}
 
 	leftContent := leftTitleStyle.Render(panelTitle) + "\n" + strings.Join(leftLines, "\n")
@@ -1087,7 +1087,7 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 		rightLines = append(rightLines, ui.SectionHeader("TICKETS", ui.ColorYellow))
 		// List all tickets (scrollable now)
 		for _, ticket := range m.tickets {
-			rightLines = append(rightLines, fmt.Sprintf("  🎫 %s", ticketStyle.Render(ticket)))
+			rightLines = append(rightLines, fmt.Sprintf("  • %s", ticketStyle.Render(ticket)))
 		}
 	}
 
@@ -1156,7 +1156,7 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 	}
 
 	rightTitleStyle := ui.MagentaBold
-	rightContent := panel(rightTitleStyle, "📋 Changes", visibleLines)
+	rightContent := panel(rightTitleStyle, "Changes", visibleLines)
 
 	return ui.UnifiedPanel(leftContent, rightContent, 50, 45, ui.ColorCyan)
 }
@@ -1336,7 +1336,7 @@ func (m Model) renderBatchSummaryWithHeight(availableHeight int) string {
 		// Show URL if available
 		if result.PrURL != nil {
 			urlStyle := ui.Cyan
-			lines = append(lines, fmt.Sprintf("              🔗 %s", urlStyle.Render(*result.PrURL)))
+			lines = append(lines, fmt.Sprintf("              %s", urlStyle.Render(*result.PrURL)))
 		}
 
 		// Show skip/fail reason
@@ -1349,7 +1349,7 @@ func (m Model) renderBatchSummaryWithHeight(availableHeight int) string {
 		// Show tickets if any
 		if len(result.Tickets) > 0 {
 			ticketStyle := ui.Yellow
-			lines = append(lines, fmt.Sprintf("              🎫 %s", ticketStyle.Render(strings.Join(result.Tickets, ", "))))
+			lines = append(lines, fmt.Sprintf("              %s", ticketStyle.Render(strings.Join(result.Tickets, ", "))))
 		}
 	}
 

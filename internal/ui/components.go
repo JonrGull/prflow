@@ -426,7 +426,7 @@ func FilterInput(filter string, title string, color lipgloss.Color, width int) s
 	}
 
 	cursor := lipgloss.NewStyle().Foreground(ColorYellow).Render("█")
-	searchIcon := lipgloss.NewStyle().Foreground(ColorCyan).Render(" 🔍 ")
+	searchIcon := lipgloss.NewStyle().Foreground(ColorCyan).Render(" / ")
 
 	content := searchIcon + filterDisplay + cursor
 

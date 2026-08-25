@@ -300,5 +300,5 @@ func (m Model) renderQaTagSelect() string {
 		dimStyle.Render(fmt.Sprintf("%d of %d tickets selected", count, len(m.tickets)))))
 
 	titleStyle := ui.CyanBold
-	return panel(titleStyle, "🏷  Tag QA", lines)
+	return panel(titleStyle, "Tag QA", lines)
 }

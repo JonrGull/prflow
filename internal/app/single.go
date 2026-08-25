@@ -579,7 +579,7 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 	} else {
 		ticketStyle := ui.YellowBold
 		for _, ticket := range m.tickets {
-			leftLines = append(leftLines, fmt.Sprintf("  🎫 %s", ticketStyle.Render(ticket)))
+			leftLines = append(leftLines, fmt.Sprintf("  • %s", ticketStyle.Render(ticket)))
 		}
 	}
 
@@ -595,7 +595,7 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 	}
 
 	leftTitleStyle := ui.CyanBold
-	leftContent := panel(leftTitleStyle, "🚀 Create PR", leftLines)
+	leftContent := panel(leftTitleStyle, "Create PR", leftLines)
 
 	// Build RIGHT column (commits list)
 	var commitLines []string
@@ -813,11 +813,11 @@ func (m Model) renderConfirmation() string {
 
 	labelStyle := ui.White
 	titleStyle := ui.WhiteBold
-	leftLines = append(leftLines, fmt.Sprintf("  📝 %s %s", labelStyle.Render("Title:"), titleStyle.Render(m.prTitle)))
+	leftLines = append(leftLines, fmt.Sprintf("  %s %s", labelStyle.Render("Title:"), titleStyle.Render(m.prTitle)))
 
 	if m.repoInfo != nil {
 		repoStyle := ui.Cyan
-		leftLines = append(leftLines, fmt.Sprintf("  📦 %s %s", labelStyle.Render("Repo: "), repoStyle.Render(m.repoInfo.DisplayName)))
+		leftLines = append(leftLines, fmt.Sprintf("  %s %s", labelStyle.Render("Repo: "), repoStyle.Render(m.repoInfo.DisplayName)))
 	}
 
 	leftLines = append(leftLines, "")
@@ -860,9 +860,9 @@ func (m Model) renderConfirmation() string {
 	leftLines = append(leftLines, ui.YesNoButtons(m.confirmSelection))
 
 	leftTitleStyle := ui.CyanBold
-	panelTitle := " 🚀 Create PR "
+	panelTitle := " Create PR "
 	if isUpdate {
-		panelTitle = " 🔄 Update PR "
+		panelTitle = " Update PR "
 	}
 	leftContent := leftTitleStyle.Render(panelTitle) + "\n" + strings.Join(leftLines, "\n")
 
@@ -902,8 +902,8 @@ func (m Model) renderConfirmation() string {
 
 	commitStyle := ui.CyanBold
 	ticketStyle := ui.YellowBold
-	rightLines = append(rightLines, fmt.Sprintf("  📊 %s commits", commitStyle.Render(fmt.Sprintf("%d", len(m.commits)))))
-	rightLines = append(rightLines, fmt.Sprintf("  🎫 %s tickets", ticketStyle.Render(fmt.Sprintf("%d", len(m.tickets)))))
+	rightLines = append(rightLines, fmt.Sprintf("  %s commits", commitStyle.Render(fmt.Sprintf("%d", len(m.commits)))))
+	rightLines = append(rightLines, fmt.Sprintf("  %s tickets", ticketStyle.Render(fmt.Sprintf("%d", len(m.tickets)))))
 
 	// List tickets
 	if len(m.tickets) > 0 {
@@ -921,7 +921,7 @@ func (m Model) renderConfirmation() string {
 	}
 
 	rightTitleStyle := ui.MagentaBold
-	rightContent := panel(rightTitleStyle, "📊 Summary", rightLines)
+	rightContent := panel(rightTitleStyle, "Summary", rightLines)
 
 	return ui.UnifiedPanel(leftContent, rightContent, 60, 35, ui.ColorCyan)
 }
@@ -982,7 +982,7 @@ func (m Model) renderComplete() string {
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("  %s %s", iconStyle.Render("✓"), successStyle.Render(revealedText)))
 	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("  🔗 %s", urlStyle.Render(m.prURL)))
+	lines = append(lines, fmt.Sprintf("  %s", urlStyle.Render(m.prURL)))
 	lines = append(lines, "")
 
 	// Render confetti
@@ -992,5 +992,5 @@ func (m Model) renderComplete() string {
 	}
 
 	titleStyle := ui.GreenBold
-	return panel(titleStyle, "🎉 Success", lines)
+	return panel(titleStyle, "Success", lines)
 }

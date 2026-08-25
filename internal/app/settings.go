@@ -429,7 +429,7 @@ func (m Model) renderSettingsWithHeight(availableHeight int) string {
 	lines = append(lines, tail...)
 	lines = append(lines, diagnostics...)
 
-	return panel(ui.CyanBold, "⚙  Settings", lines)
+	return panel(ui.CyanBold, "Settings", lines)
 }
 
 // settingsWindow centres visible fields on the cursor, clamped to the ends.

@@ -237,5 +237,5 @@ func (m Model) renderSessionHistory() string {
 	}
 
 	titleStyle := ui.MagentaBold
-	return titleStyle.Render(fmt.Sprintf(" 📋 Session History (%d) ", len(m.sessionPRs))) + "\n" + strings.Join(lines, "\n")
+	return titleStyle.Render(fmt.Sprintf(" Session History (%d) ", len(m.sessionPRs))) + "\n" + strings.Join(lines, "\n")
 }
