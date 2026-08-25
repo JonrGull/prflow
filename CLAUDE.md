@@ -175,8 +175,10 @@ them under `[update]` are migrated on load.
 files, the binary, the release assets and the module path all changed name. `internal/config` reads `attpr.toml` and `attpr-state.toml` when
 the current names are absent, and the read is one-way: the next deliberate
 settings change writes `prflow.toml` and leaves the old file alone, so a
-downgrade still finds its config. `paths.legacy_dir` migrates to
-`paths.repos_dir` on load and is dropped on the next write. `rename_test.go`
+downgrade still finds its config. The one value not carried over from that
+file is `update.repo`: it names the release repo of the tool prflow was forked
+from, whose releases are a different tool on a higher version line, so trusting
+it offered an "update" to the predecessor on every launch. `rename_test.go`
 covers all of it.
 
 **Backward compatibility:** A config written before `[[flows]]` existed gets the default two-step chain, the same way the globs defaults are restored — so an existing file keeps working untouched. Old configs with `frontend_glob`/`backend_glob` under `[paths]` auto-migrate to `[[globs]]` entries. The deprecated `category` field on `[[repos]]` maps to `group`.

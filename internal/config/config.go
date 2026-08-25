@@ -77,11 +77,8 @@ type UpdateConfig struct {
 }
 
 type PathsConfig struct {
-	// ReposDir is the directory the globs are resolved under. It was
-	// legacy_dir, which only made sense inside one company; the old key is
-	// still read so an existing config keeps working.
+	// ReposDir is the directory the globs are resolved under.
 	ReposDir     string `toml:"repos_dir"`
-	LegacyDir   string `toml:"legacy_dir,omitempty"`   // deprecated: use repos_dir
 	FrontendGlob string `toml:"frontend_glob,omitempty"` // deprecated: use [[globs]]
 	BackendGlob  string `toml:"backend_glob,omitempty"`  // deprecated: use [[globs]]
 }
@@ -139,11 +136,8 @@ const (
 	configName       = "prflow.toml"
 	legacyConfigName = "attpr.toml"
 
-	// updateRepo is where self-update looks for releases. legacyUpdateRepo is
-	// the repo the tool was forked from, which still publishes releases of its
-	// own under higher version numbers.
-	updateRepo       = "JonrGull/prflow"
-	legacyUpdateRepo = "someone/the-old-tool"
+	// updateRepo is where self-update looks for releases.
+	updateRepo = "JonrGull/prflow"
 )
 
 func configPath() (string, error) {
@@ -163,27 +157,27 @@ var errNoConfigDir = errors.New("no user config directory")
 // The fallback is read-only: the next deliberate settings change writes
 // prflow.toml, and the old file is left alone rather than deleted, so a
 // downgrade still finds its config.
-func readConfigFile() ([]byte, error) {
+func readConfigFile() (data []byte, fromLegacy bool, err error) {
 	path, err := configPath()
 	if err != nil {
-		return nil, errNoConfigDir
+		return nil, false, errNoConfigDir
 	}
 
-	data, err := os.ReadFile(path)
+	data, err = os.ReadFile(path)
 	if err == nil {
-		return data, nil
+		return data, false, nil
 	}
 	if !os.IsNotExist(err) {
-		return nil, err
+		return nil, false, err
 	}
 
 	legacy := filepath.Join(filepath.Dir(path), legacyConfigName)
 	if data, legacyErr := os.ReadFile(legacy); legacyErr == nil {
-		return data, nil
+		return data, true, nil
 	}
 
 	// Report the new path's error, since that is the file the app owns.
-	return nil, err
+	return nil, false, err
 }
 
 // Path returns the config file path
@@ -192,7 +186,7 @@ func Path() (string, error) {
 }
 
 func Load() (*Config, error) {
-	data, err := readConfigFile()
+	data, fromLegacy, err := readConfigFile()
 	if err != nil {
 		// No config directory and no config file are the same situation: start
 		// from the defaults rather than refusing to run.
@@ -217,26 +211,21 @@ func Load() (*Config, error) {
 	defaultFlows := cfg.Flows
 	cfg.Flows = nil // same, for configs written before [[flows]] existed
 	defaultReposDir := cfg.Paths.ReposDir
-	cfg.Paths.ReposDir = "" // same, so the old legacy_dir key can be spotted
+	cfg.Paths.ReposDir = "" // same, so an omitted repos_dir can be spotted
 	if err := toml.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}
 
-	// Migrate the pre-rename paths.legacy_dir key.
-	switch {
-	case cfg.Paths.ReposDir != "":
-	case cfg.Paths.LegacyDir != "":
-		cfg.Paths.ReposDir = cfg.Paths.LegacyDir
-	default:
+	if cfg.Paths.ReposDir == "" {
 		cfg.Paths.ReposDir = defaultReposDir
 	}
-	cfg.Paths.LegacyDir = "" // omitempty drops it on the next write
 
-	// A config carried over from before the fork still points self-update at
-	// the upstream repo, whose releases are a different tool on a higher
-	// version line, so it offered an "update" that would replace prflow with
-	// attpr on every launch.
-	if cfg.Update.Repo == legacyUpdateRepo || cfg.Update.Repo == "" {
+	// A pre-rename config names the release repo of the tool this one was
+	// forked from, which is a different tool on its own version line: checking
+	// for updates against it offers to replace this binary with that one, on
+	// every launch. Its repo value is the one setting in that file that cannot
+	// be carried over.
+	if fromLegacy || cfg.Update.Repo == "" {
 		cfg.Update.Repo = updateRepo
 	}
 

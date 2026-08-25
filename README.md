@@ -166,10 +166,11 @@ Values the app writes for itself — when it last checked for an update, and any
 version you skipped — live in `prflow-state.toml` beside the config, so merely
 launching prflow never rewrites the file you edited.
 
-Older configs are migrated automatically on load: `legacy_dir` under `[paths]`
-(the tool's former name), `frontend_glob`/`backend_glob` under `[paths]`,
-`category` on a `[[repos]]` entry, and `last_check`/`skipped_version` under
-`[update]`. A config still named `attpr.toml` is read as-is; the next
+Older configs are migrated automatically on load: `frontend_glob`/`backend_glob`
+under `[paths]`, `category` on a `[[repos]]` entry, and
+`last_check`/`skipped_version` under `[update]`. A config still named
+`attpr.toml` is read as-is apart from `update.repo`, which names the release
+repo of the tool prflow was forked from and is reset to prflow's own; the next
 deliberate settings change writes `prflow.toml` and leaves the old file alone.
 
 ### Example Directory Structure

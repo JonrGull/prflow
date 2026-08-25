@@ -11,8 +11,8 @@ import (
 )
 
 // The rename must be invisible to anyone already using the tool: the config and
-// state files changed name, and the scan directory changed key, so all three
-// have to be read from their old spellings when the new ones are absent.
+// state files changed name, so both have to be read from their old spellings
+// when the new ones are absent.
 
 func TestLoadReadsThePreRenameConfigFile(t *testing.T) {
 	dir := t.TempDir()
@@ -20,7 +20,7 @@ func TestLoadReadsThePreRenameConfigFile(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	legacy := filepath.Join(dir, legacyConfigName)
-	body := "[paths]\nlegacy_dir = '/somewhere/repos'\n\n[tickets]\npattern = 'XYZ-[0-9]+'\n"
+	body := "[paths]\nrepos_dir = '/somewhere/repos'\n\n[tickets]\npattern = 'XYZ-[0-9]+'\n"
 	if err := os.WriteFile(legacy, []byte(body), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -33,15 +33,10 @@ func TestLoadReadsThePreRenameConfigFile(t *testing.T) {
 		t.Error("an existing config was treated as a first run")
 	}
 	if cfg.Paths.ReposDir != "/somewhere/repos" {
-		t.Errorf("repos dir = %q, want the migrated legacy_dir", cfg.Paths.ReposDir)
+		t.Errorf("repos dir = %q, want the old file's value", cfg.Paths.ReposDir)
 	}
 	if cfg.Tickets.Pattern != "XYZ-[0-9]+" {
 		t.Errorf("pattern = %q, want the file's own value", cfg.Tickets.Pattern)
-	}
-	// The deprecated key is cleared so the next write drops it rather than
-	// leaving two spellings of the same setting in the file.
-	if cfg.Paths.LegacyDir != "" {
-		t.Errorf("deprecated legacy_dir survived as %q", cfg.Paths.LegacyDir)
 	}
 }
 
@@ -132,10 +127,10 @@ func TestLoadStateReadsThePreRenameFile(t *testing.T) {
 	}
 }
 
-// The error shown when the repo directory is missing named paths.legacy_dir,
-// a key that no longer exists — so the one message telling a user how to fix
-// their config pointed at a setting they could not find. This lives here
-// because the rename is what broke it.
+// The error shown when the repo directory is missing named a config key that
+// no longer exists, so the one message telling a user how to fix their config
+// pointed at a setting they could not find. This lives here because the rename
+// is what broke it.
 func TestMissingRepoDirErrorNamesTheCurrentKey(t *testing.T) {
 	_, err := git.FindRepos(filepath.Join(t.TempDir(), "nope"), nil, nil)
 	if err == nil {
@@ -144,23 +139,20 @@ func TestMissingRepoDirErrorNamesTheCurrentKey(t *testing.T) {
 	if !strings.Contains(err.Error(), "paths.repos_dir") {
 		t.Errorf("error does not name the current config key: %v", err)
 	}
-	if strings.Contains(err.Error(), "legacy") {
-		t.Errorf("error still names the pre-rename key: %v", err)
-	}
 }
 
-// The fork inherited the upstream's config, which points self-update at the
-// upstream repo. Its releases are a different tool on a higher version line,
-// so every launch offered an "update" that would have replaced prflow with
-// attpr.
-func TestLoadRepointsThePreForkUpdateRepo(t *testing.T) {
+// A pre-rename config names the release repo of the tool this one was forked
+// from. Those releases are a different tool on a higher version line, so
+// honouring the value offered an "update" that would have replaced prflow with
+// its predecessor on every launch.
+func TestLoadIgnoresThePreRenameUpdateRepo(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
 	t.Setenv("HOME", dir)
 
-	current := filepath.Join(dir, configName)
-	body := "[update]\nenabled = true\nrepo = '" + legacyUpdateRepo + "'\n"
-	if err := os.WriteFile(current, []byte(body), 0644); err != nil {
+	legacy := filepath.Join(dir, legacyConfigName)
+	body := "[update]\nenabled = true\nrepo = 'someone/the-old-tool'\n"
+	if err := os.WriteFile(legacy, []byte(body), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -170,6 +162,9 @@ func TestLoadRepointsThePreForkUpdateRepo(t *testing.T) {
 	}
 	if cfg.Update.Repo != updateRepo {
 		t.Errorf("update repo = %q, want %q", cfg.Update.Repo, updateRepo)
+	}
+	if !cfg.Update.Enabled {
+		t.Error("the rest of the [update] table should still be read")
 	}
 }
 
