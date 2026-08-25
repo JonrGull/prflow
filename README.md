@@ -6,13 +6,9 @@ Define the chain a release moves through — `dev → staging → main`, or what
 your team actually uses — and prflow opens, tracks and merges the PRs for each
 step across every repo at once.
 
-![prflow: opening a release PR, batching four repos, the open-PR table and the Actions panel](docs/demo.gif)
-
-*Recorded with `--dry-run`, so every repo, commit and PR above is fixture data.*
-
-Or watch it with player controls, which is the same recording with a seek bar:
-
 https://github.com/user-attachments/assets/6659fe81-e72c-4989-9f92-9b6df784bc4f
+
+*Recorded with `--dry-run`, so every repo, commit and PR in it is fixture data.*
 
 ## Install
 
