@@ -17,12 +17,12 @@ type ConfettiParticle struct {
 	X, Y   float64
 	VX, VY float64
 	Char   rune
-	Color  lipgloss.Color
+	Color  lipgloss.TerminalColor
 }
 
 // spawnConfetti creates confetti particles for celebration
 func (m *Model) spawnConfetti() {
-	colors := []lipgloss.Color{
+	colors := []lipgloss.TerminalColor{
 		ui.ColorCyan,
 		ui.ColorMagenta,
 		ui.ColorYellow,
@@ -57,10 +57,10 @@ func (m Model) renderConfetti() string {
 	width := 80
 	height := 5
 	grid := make([][]rune, height)
-	colors := make([][]lipgloss.Color, height)
+	colors := make([][]lipgloss.TerminalColor, height)
 	for i := range grid {
 		grid[i] = make([]rune, width)
-		colors[i] = make([]lipgloss.Color, width)
+		colors[i] = make([]lipgloss.TerminalColor, width)
 		for j := range grid[i] {
 			grid[i][j] = ' '
 		}

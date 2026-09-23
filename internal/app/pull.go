@@ -207,8 +207,8 @@ func (m Model) renderPullBranchSelect() string {
 		nameStyle := lipgloss.NewStyle().Foreground(flowChainColor(i)).Bold(true)
 		gap := " "
 		if isSelected {
-			nameStyle = nameStyle.Background(ui.ColorDarkGray)
-			gap = lipgloss.NewStyle().Background(ui.ColorDarkGray).Render(" ")
+			nameStyle = nameStyle.Background(ui.ColorSelection)
+			gap = lipgloss.NewStyle().Background(ui.ColorSelection).Render(" ")
 		}
 		desc := fmt.Sprintf("Pull the %s branch everywhere", name)
 		if i == len(branches)-1 {
@@ -344,7 +344,7 @@ func (m Model) renderPullProgress() string {
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorPurple).
+		BorderForeground(ui.ColorBorder).
 		Width(contentWidth).
 		Padding(1, 2)
 

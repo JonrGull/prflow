@@ -394,9 +394,9 @@ func (m Model) renderPrTypeSelect() string {
 		sep := " → "
 		gap := " "
 		if isSelected {
-			headStyle = headStyle.Background(ui.ColorDarkGray)
-			baseStyle = baseStyle.Background(ui.ColorDarkGray)
-			bgStyle := lipgloss.NewStyle().Background(ui.ColorDarkGray)
+			headStyle = headStyle.Background(ui.ColorSelection)
+			baseStyle = baseStyle.Background(ui.ColorSelection)
+			bgStyle := lipgloss.NewStyle().Background(ui.ColorSelection)
 			sep = bgStyle.Render(" → ")
 			gap = bgStyle.Render(" ")
 		}
@@ -492,7 +492,7 @@ func (m Model) renderLoading() string {
 	// Purple border box
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorPurple).
+		BorderForeground(ui.ColorBorder).
 		Width(m.contentWidth()).
 		Padding(1, 2)
 
@@ -546,7 +546,7 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 		cursorStyle := ui.Yellow
 
 		var displayText string
-		var textColor lipgloss.Color
+		var textColor lipgloss.TerminalColor
 		if m.prTitle == "" {
 			displayText = defaultTitle
 			textColor = ui.ColorDarkGray
@@ -658,8 +658,8 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 	commitContent := commitTitleStyle.Render(fmt.Sprintf(" %d commits ", len(m.commits))) + "\n" + strings.Join(commitLines, "\n")
 
 	// Use ColumnBox for consistent sizing - purple outer borders for consistency
-	leftColumn := ui.ColumnBox(leftContent, "", ui.ColorPurple, true, columnWidth, panelHeight)
-	rightColumn := ui.ColumnBox(commitContent, "", ui.ColorPurple, false, columnWidth-10, panelHeight)
+	leftColumn := ui.ColumnBox(leftContent, "", ui.ColorBorder, true, columnWidth, panelHeight)
+	rightColumn := ui.ColumnBox(commitContent, "", ui.ColorBorder, false, columnWidth-10, panelHeight)
 
 	return ui.TwoColumns(leftColumn, rightColumn, 2)
 }
@@ -690,7 +690,7 @@ func (m Model) renderTitleInput() string {
 	cursorStyle := ui.Yellow
 
 	var displayText string
-	var textColor lipgloss.Color
+	var textColor lipgloss.TerminalColor
 	if m.prTitle == "" {
 		displayText = fmt.Sprintf("%s (default)", defaultTitle)
 		textColor = ui.ColorDarkGray
@@ -968,7 +968,7 @@ func (m Model) renderComplete() string {
 	var lines []string
 
 	// Use pulsing green effect based on sine wave
-	var successColor lipgloss.Color
+	var successColor lipgloss.TerminalColor
 	pulseIntensity := (math.Sin(m.pulsePhase) + 1.0) / 2.0
 	if pulseIntensity > 0.5 {
 		successColor = ui.ColorGreen

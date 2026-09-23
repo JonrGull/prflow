@@ -42,6 +42,9 @@ func TestMain(m *testing.M) {
 	// lipgloss picks its colour profile from the terminal, so goldens recorded
 	// under one TERM would not match another. Pin it.
 	lipgloss.SetColorProfile(termenv.TrueColor)
+	// The palette is adaptive, so the background decides which variant renders.
+	// Left to detection it depends on the terminal running the tests.
+	lipgloss.SetHasDarkBackground(true)
 	// Pin the clock and config-path seams for the whole package, so renders do
 	// not vary by machine, $HOME, or operating system.
 	timeNow = func() time.Time { return fixedNow }

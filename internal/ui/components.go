@@ -11,7 +11,7 @@ import (
 var TabNames = []string{"Single", "Batch", "Release PRs", "All Open PRs", "Actions"}
 
 // TabColors are the colors for each tab
-var TabColors = []lipgloss.Color{ColorCyan, ColorMagenta, ColorYellow, ColorBlue, ColorOrange}
+var TabColors = []lipgloss.TerminalColor{ColorCyan, ColorMagenta, ColorYellow, ColorBlue, ColorOrange}
 
 // RenderTabBar renders a horizontal tab bar with the active tab highlighted
 func RenderTabBar(activeTab int, width int) string {
@@ -20,7 +20,7 @@ func RenderTabBar(activeTab int, width int) string {
 	for i, name := range TabNames {
 		if i == activeTab {
 			style := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#000000")).
+				Foreground(ColorOnAccent).
 				Background(TabColors[i]).
 				Bold(true).
 				Padding(0, 1)
@@ -38,7 +38,7 @@ func RenderTabBar(activeTab int, width int) string {
 
 // SectionHeader creates a styled section header with a title and color
 // Example: "─── TITLE ───────────"
-func SectionHeader(title string, color lipgloss.Color) string {
+func SectionHeader(title string, color lipgloss.TerminalColor) string {
 	dashes := strings.Repeat("─", max(25-len(title), 0))
 	headerStyle := lipgloss.NewStyle().Foreground(color)
 	titleStyle := lipgloss.NewStyle().Foreground(color).Bold(true)
@@ -52,7 +52,7 @@ func SectionHeader(title string, color lipgloss.Color) string {
 
 // BranchFlowDiagram creates a visual diagram showing branch flow
 // Example: dev ====> staging
-func BranchFlowDiagram(head, base string, headColor, baseColor lipgloss.Color) string {
+func BranchFlowDiagram(head, base string, headColor, baseColor lipgloss.TerminalColor) string {
 	headStyle := lipgloss.NewStyle().Foreground(headColor)
 	headBoldStyle := lipgloss.NewStyle().Foreground(headColor).Bold(true)
 	baseStyle := lipgloss.NewStyle().Foreground(baseColor)
@@ -134,7 +134,7 @@ func YesNoButtons(selection int) string {
 }
 
 // colorForButton returns (borderColor, textColor) based on whether the button is active
-func colorForButton(active bool, accentColor lipgloss.Color) (lipgloss.Color, lipgloss.Color) {
+func colorForButton(active bool, accentColor lipgloss.TerminalColor) (lipgloss.TerminalColor, lipgloss.TerminalColor) {
 	if active {
 		return accentColor, accentColor
 	}
@@ -150,7 +150,7 @@ func Spinner(frame int) string {
 }
 
 // WorkflowStatusIcon returns the icon and color for a GitHub Actions status/conclusion pair
-func WorkflowStatusIcon(status, conclusion string, spinnerFrame int) (string, lipgloss.Color) {
+func WorkflowStatusIcon(status, conclusion string, spinnerFrame int) (string, lipgloss.TerminalColor) {
 	switch {
 	case status == "in_progress":
 		return Spinner(spinnerFrame), ColorYellow
@@ -184,7 +184,7 @@ func Arrow(selected bool) string {
 }
 
 // KeyBinding renders a key binding hint
-func KeyBinding(key, description string, color lipgloss.Color) string {
+func KeyBinding(key, description string, color lipgloss.TerminalColor) string {
 	keyStyle := lipgloss.NewStyle().Foreground(color).Bold(true)
 	descStyle := lipgloss.NewStyle().Foreground(ColorWhite)
 
@@ -215,8 +215,8 @@ type MenuInfoDetails struct {
 // caller — internal/ui does not read the config.
 type MenuInfoStep struct {
 	Head, Base string
-	HeadColor  lipgloss.Color
-	BaseColor  lipgloss.Color
+	HeadColor  lipgloss.TerminalColor
+	BaseColor  lipgloss.TerminalColor
 }
 
 // MenuInfoPanel returns the ASCII art and description for a menu item
@@ -327,7 +327,7 @@ func JoinColumns(columns []string, gap int) string {
 }
 
 // UnifiedPanel creates two columns with a vertical separator (no border - outer border is in View)
-func UnifiedPanel(leftContent, rightContent string, leftWidth, rightWidth int, borderColor lipgloss.Color) string {
+func UnifiedPanel(leftContent, rightContent string, leftWidth, rightWidth int, borderColor lipgloss.TerminalColor) string {
 	leftStyle := lipgloss.NewStyle().Width(leftWidth).Padding(0, 1)
 	rightStyle := lipgloss.NewStyle().Width(rightWidth).Padding(0, 1)
 
@@ -354,7 +354,7 @@ func UnifiedPanel(leftContent, rightContent string, leftWidth, rightWidth int, b
 
 // ColumnBox creates a bordered column with title for two-column layouts
 // If height > 0, content is padded/truncated to exactly that many lines
-func ColumnBox(content string, title string, color lipgloss.Color, isActive bool, width int, height int) string {
+func ColumnBox(content string, title string, color lipgloss.TerminalColor, isActive bool, width int, height int) string {
 	borderColor := color
 	if !isActive {
 		borderColor = ColorDarkGray
@@ -403,7 +403,7 @@ func ColumnBox(content string, title string, color lipgloss.Color, isActive bool
 // string, which meant they drew a search icon, a "Type to filter..." prompt and
 // a cursor for a feature they did not have — the Release PRs screen invited you
 // to type and then ignored every keystroke.
-func TitleBar(title string, color lipgloss.Color, width int) string {
+func TitleBar(title string, color lipgloss.TerminalColor, width int) string {
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(color).
@@ -417,7 +417,7 @@ func TitleBar(title string, color lipgloss.Color, width int) string {
 
 // FilterInput renders a bordered title above a live filter prompt. Only for
 // screens that actually handle typing — see TitleBar otherwise.
-func FilterInput(filter string, title string, color lipgloss.Color, width int) string {
+func FilterInput(filter string, title string, color lipgloss.TerminalColor, width int) string {
 	var filterDisplay string
 	if filter == "" {
 		filterDisplay = lipgloss.NewStyle().Foreground(ColorDarkGray).Render("Type to filter...")
@@ -445,7 +445,7 @@ func FilterInput(filter string, title string, color lipgloss.Color, width int) s
 
 // RepoListItemWithCommits renders a repo item with checkbox and commit indicator
 // commitCount: -1 = loading, 0 = no commits, >0 = has commits
-func RepoListItemWithCommits(name string, selected bool, highlighted bool, color lipgloss.Color, indent string, commitCount int, spinnerFrame int) string {
+func RepoListItemWithCommits(name string, selected bool, highlighted bool, color lipgloss.TerminalColor, indent string, commitCount int, spinnerFrame int) string {
 	checkbox := Checkbox(selected)
 	arrow := Arrow(highlighted)
 
@@ -485,7 +485,7 @@ func RepoListItemWithCommits(name string, selected bool, highlighted bool, color
 }
 
 // PRListItem renders a compact single-line PR item for the merge view
-func PRListItem(repoName string, prNumber uint64, selected bool, highlighted bool, color lipgloss.Color) string {
+func PRListItem(repoName string, prNumber uint64, selected bool, highlighted bool, color lipgloss.TerminalColor) string {
 	checkbox := Checkbox(selected)
 	arrow := Arrow(highlighted)
 
@@ -521,7 +521,7 @@ func ParentHeader(name string) string {
 
 // MenuRow renders a menu row with optional highlight background
 // width should be the inner width of the panel (excluding border)
-func MenuRow(icon, title, desc string, color lipgloss.Color, selected bool, width int) []string {
+func MenuRow(icon, title, desc string, color lipgloss.TerminalColor, selected bool, width int) []string {
 	arrow := "  "
 	if selected {
 		arrow = "▶ "
@@ -529,11 +529,11 @@ func MenuRow(icon, title, desc string, color lipgloss.Color, selected bool, widt
 
 	if selected {
 		// For selected items, render the whole line with background
-		rowStyle := lipgloss.NewStyle().Background(ColorDarkGray).Width(width)
-		arrowStyle := lipgloss.NewStyle().Foreground(color).Background(ColorDarkGray)
-		iconStyle := lipgloss.NewStyle().Background(ColorDarkGray)
-		titleStyle := lipgloss.NewStyle().Foreground(color).Bold(true).Background(ColorDarkGray)
-		descStyle := lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorDarkGray)
+		rowStyle := lipgloss.NewStyle().Background(ColorSelection).Width(width)
+		arrowStyle := lipgloss.NewStyle().Foreground(color).Background(ColorSelection)
+		iconStyle := lipgloss.NewStyle().Background(ColorSelection)
+		titleStyle := lipgloss.NewStyle().Foreground(color).Bold(true).Background(ColorSelection)
+		descStyle := lipgloss.NewStyle().Foreground(ColorWhite).Background(ColorSelection)
 
 		line1 := rowStyle.Render(arrowStyle.Render(arrow) + iconStyle.Render(icon+"  ") + titleStyle.Render(title))
 		line2 := rowStyle.Render("       " + descStyle.Render(desc))

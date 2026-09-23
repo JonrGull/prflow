@@ -4,18 +4,27 @@ import "github.com/charmbracelet/lipgloss"
 
 // Note: Warp terminal fix is in internal/termfix package, imported first in main.go
 
+// The palette. Each colour is a light/dark pair: lipgloss picks the variant for
+// the terminal's background, so text that was pure #FFFFFF — invisible on a
+// light theme — now has a dark counterpart. The names are the hues the screens
+// have always asked for; only the values changed, from pure ANSI primaries to
+// one harmonised set, which is what stopped every heading shouting.
 var (
-	ColorCyan       = lipgloss.Color("#00FFFF")
-	ColorGreen      = lipgloss.Color("#00FF00")
-	ColorYellow     = lipgloss.Color("#FFFF00")
-	ColorRed        = lipgloss.Color("#FF0000")
-	ColorMagenta    = lipgloss.Color("#FF00FF")
-	ColorBlue       = lipgloss.Color("#5555FF")
-	ColorPurple     = lipgloss.Color("#AA55FF")
-	ColorOrange     = lipgloss.Color("#FFA500")
-	ColorLightGreen = lipgloss.Color("#90EE90")
-	ColorWhite      = lipgloss.Color("#FFFFFF")
-	ColorDarkGray   = lipgloss.Color("#6C6C6C") // Readable dim text on both light and dark backgrounds
+	ColorCyan       = lipgloss.AdaptiveColor{Dark: "#7DCFFF", Light: "#007197"}
+	ColorGreen      = lipgloss.AdaptiveColor{Dark: "#9ECE6A", Light: "#3F7A1F"}
+	ColorYellow     = lipgloss.AdaptiveColor{Dark: "#E0AF68", Light: "#8C6C3E"}
+	ColorRed        = lipgloss.AdaptiveColor{Dark: "#F7768E", Light: "#C8284F"}
+	ColorMagenta    = lipgloss.AdaptiveColor{Dark: "#BB9AF7", Light: "#7847BD"}
+	ColorBlue       = lipgloss.AdaptiveColor{Dark: "#7AA2F7", Light: "#2E5FD1"}
+	ColorOrange     = lipgloss.AdaptiveColor{Dark: "#FF9E64", Light: "#B15C00"}
+	ColorLightGreen = lipgloss.AdaptiveColor{Dark: "#73DACA", Light: "#0F7F6D"}
+	ColorWhite      = lipgloss.AdaptiveColor{Dark: "#C0CAF5", Light: "#343B58"} // primary text
+	ColorDarkGray   = lipgloss.AdaptiveColor{Dark: "#737AA2", Light: "#6B7394"} // dim text
+
+	// Roles rather than hues.
+	ColorBorder    = lipgloss.AdaptiveColor{Dark: "#3B4261", Light: "#C4C8DA"} // frames and rules
+	ColorSelection = lipgloss.AdaptiveColor{Dark: "#283457", Light: "#D5DDF5"} // highlighted row
+	ColorOnAccent  = lipgloss.AdaptiveColor{Dark: "#16161E", Light: "#FFFFFF"} // text on an accent fill
 )
 
 // Preset styles for the combinations used repeatedly across the views.

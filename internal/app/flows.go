@@ -18,7 +18,7 @@ import (
 // flowChainColors colour a *branch* by its position in the chain, so a branch
 // keeps one colour wherever it appears. The default two-step chain lands on
 // dev green, staging yellow, main red — which is what it always looked like.
-var flowChainColors = []lipgloss.Color{
+var flowChainColors = []lipgloss.TerminalColor{
 	ui.ColorGreen, ui.ColorYellow, ui.ColorRed,
 	ui.ColorMagenta, ui.ColorCyan, ui.ColorBlue,
 }
@@ -26,7 +26,7 @@ var flowChainColors = []lipgloss.Color{
 // flowColumnColors identify a whole *step* on the open-PRs screen. They are a
 // separate sequence because a column is a step rather than a branch: the two
 // default columns read green and red, not green and yellow.
-var flowColumnColors = []lipgloss.Color{
+var flowColumnColors = []lipgloss.TerminalColor{
 	ui.ColorGreen, ui.ColorRed, ui.ColorYellow,
 	ui.ColorMagenta, ui.ColorCyan, ui.ColorBlue,
 }
@@ -35,9 +35,9 @@ var flowColumnColors = []lipgloss.Color{
 // border colour alone is hard to tell apart.
 var flowColumnMarkers = []string{"●", "■", "▲", "◆", "○", "□"}
 
-func flowChainColor(i int) lipgloss.Color  { return flowChainColors[i%len(flowChainColors)] }
-func flowColumnColor(i int) lipgloss.Color { return flowColumnColors[i%len(flowColumnColors)] }
-func flowColumnMarker(i int) string        { return flowColumnMarkers[i%len(flowColumnMarkers)] }
+func flowChainColor(i int) lipgloss.TerminalColor  { return flowChainColors[i%len(flowChainColors)] }
+func flowColumnColor(i int) lipgloss.TerminalColor { return flowColumnColors[i%len(flowColumnColors)] }
+func flowColumnMarker(i int) string                { return flowColumnMarkers[i%len(flowColumnMarkers)] }
 
 // flows returns the configured release steps, in order.
 func (m Model) flows() []models.Flow {
@@ -93,7 +93,7 @@ func (m Model) chainBranches() []string {
 //
 // This replaces a switch in internal/ui that matched the literal strings "dev",
 // "staging", "main" and "master", and coloured everything else white.
-func (m Model) branchColor(branch string) lipgloss.Color {
+func (m Model) branchColor(branch string) lipgloss.TerminalColor {
 	for i, b := range m.chainBranches() {
 		if b == branch {
 			return flowChainColor(i)

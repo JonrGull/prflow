@@ -125,7 +125,7 @@ func (m Model) View() string {
 	if boxed {
 		outerBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ui.ColorPurple).
+			BorderForeground(ui.ColorBorder).
 			Width(contentWidth).
 			Padding(outerBoxPadding, 2)
 
@@ -230,12 +230,12 @@ func numberedMenuRow(num, title, desc string, selected bool) []string {
 	}
 
 	if selected {
-		rowStyle := lipgloss.NewStyle().Background(ui.ColorDarkGray).Width(menuRowWidth)
+		rowStyle := lipgloss.NewStyle().Background(ui.ColorSelection).Width(menuRowWidth)
 		return []string{
 			rowStyle.Render(
-				ui.Cyan.Background(ui.ColorDarkGray).Render(arrow) +
-					ui.YellowBold.Background(ui.ColorDarkGray).Render(num) + title),
-			rowStyle.Render("      " + ui.White.Background(ui.ColorDarkGray).Render(desc)),
+				ui.Cyan.Background(ui.ColorSelection).Render(arrow) +
+					ui.YellowBold.Background(ui.ColorSelection).Render(num) + title),
+			rowStyle.Render("      " + ui.White.Background(ui.ColorSelection).Render(desc)),
 		}
 	}
 

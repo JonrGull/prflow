@@ -207,11 +207,11 @@ func (m Model) renderSessionHistory() string {
 
 			var repoStyle, typeStyle, urlStyle, arrowStyle, dimStyle lipgloss.Style
 			if isSelected {
-				repoStyle = ui.CyanBold.Background(ui.ColorDarkGray)
-				typeStyle = ui.Yellow.Background(ui.ColorDarkGray)
-				urlStyle = ui.White.Background(ui.ColorDarkGray)
-				arrowStyle = ui.Cyan.Background(ui.ColorDarkGray)
-				dimStyle = ui.White.Background(ui.ColorDarkGray)
+				repoStyle = ui.CyanBold.Background(ui.ColorSelection)
+				typeStyle = ui.Yellow.Background(ui.ColorSelection)
+				urlStyle = ui.White.Background(ui.ColorSelection)
+				arrowStyle = ui.Cyan.Background(ui.ColorSelection)
+				dimStyle = ui.White.Background(ui.ColorSelection)
 			} else {
 				repoStyle = ui.CyanBold
 				typeStyle = ui.Yellow

@@ -746,7 +746,7 @@ func (m Model) renderActionsPinnedPanels(width, maxHeight int, active bool) stri
 }
 
 // renderPinnedPanel renders a single pinned run's detail box
-func (m Model) renderPinnedPanel(panel actionsPanel, borderColor lipgloss.Color, width int, highlighted bool) string {
+func (m Model) renderPinnedPanel(panel actionsPanel, borderColor lipgloss.TerminalColor, width int, highlighted bool) string {
 	// Run info line
 	statusIcon, statusColor := ui.WorkflowStatusIcon(panel.Run.Status, panel.Run.Conclusion, m.spinnerFrame)
 	statusStyle := lipgloss.NewStyle().Foreground(statusColor)

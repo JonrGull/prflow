@@ -372,9 +372,9 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 
 		if lineIdx >= m.allPRs.scroll && lineIdx < m.allPRs.scroll+visibleHeight {
 			highlighted := i == m.allPRs.index
-			bg := lipgloss.Color("")
+			var bg lipgloss.TerminalColor = lipgloss.NoColor{}
 			if highlighted {
-				bg = ui.ColorDarkGray
+				bg = ui.ColorSelection
 			}
 
 			// Styles that adapt to highlight state

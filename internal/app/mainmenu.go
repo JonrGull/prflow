@@ -176,7 +176,7 @@ func (m Model) renderMainMenu() string {
 		icon  string
 		title string
 		desc  string
-		color lipgloss.Color
+		color lipgloss.TerminalColor
 	}{
 		{"1.", "SINGLE REPO", "Create PR for current repo", ui.ColorCyan},
 		{"2.", "BATCH MODE", "Create PRs for multiple repos", ui.ColorMagenta},

@@ -179,7 +179,7 @@ func (m Model) renderUpdatePrompt() string {
 	options := []struct {
 		key   string
 		label string
-		color lipgloss.Color
+		color lipgloss.TerminalColor
 	}{
 		{"y", "Update now", ui.ColorGreen},
 		{"n", "Skip for now", ui.ColorYellow},
@@ -193,7 +193,7 @@ func (m Model) renderUpdatePrompt() string {
 		if i == m.updateSelection {
 			style = lipgloss.NewStyle().
 				Background(opt.color).
-				Foreground(lipgloss.Color("#000000")).
+				Foreground(ui.ColorOnAccent).
 				Padding(0, 1).
 				Bold(true)
 		} else {

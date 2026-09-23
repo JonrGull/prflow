@@ -17,7 +17,7 @@ import (
 type keyHint struct {
 	Key   string
 	Desc  string
-	Color lipgloss.Color
+	Color lipgloss.TerminalColor
 }
 
 // Hints shared across screens, named so the tables below stay readable and a

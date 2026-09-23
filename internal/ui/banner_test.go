@@ -10,6 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetHasDarkBackground(true)
 	m.Run()
 }
 

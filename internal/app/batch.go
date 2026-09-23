@@ -708,7 +708,7 @@ func (m Model) handleBatchSummaryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // batchColumnStyle holds the per-column presentation that the repo list varies.
 var batchColumnStyle = [2]struct {
 	Icon  string
-	Color lipgloss.Color
+	Color lipgloss.TerminalColor
 }{
 	0: {"●", ui.ColorCyan},
 	1: {"◆", ui.ColorMagenta},
@@ -1219,7 +1219,7 @@ func (m Model) renderBatchProcessing() string {
 		for _, result := range m.batch.results {
 			var icon string
 			var statusText string
-			var color lipgloss.Color
+			var color lipgloss.TerminalColor
 
 			if models.IsStatusCreated(result.Status) {
 				icon = "✓"
@@ -1274,7 +1274,7 @@ func (m Model) renderBatchSummaryWithHeight(availableHeight int) string {
 
 	// Determine header message and colors based on results
 	var headerMsg string
-	var headerColor lipgloss.Color
+	var headerColor lipgloss.TerminalColor
 	var icon string
 
 	if successCount > 0 {
@@ -1319,7 +1319,7 @@ func (m Model) renderBatchSummaryWithHeight(availableHeight int) string {
 	// Results list
 	for i, result := range m.batch.results {
 		var statusStr string
-		var statusColor lipgloss.Color
+		var statusColor lipgloss.TerminalColor
 
 		if models.IsStatusCreated(result.Status) {
 			statusStr = "✓ Created"
