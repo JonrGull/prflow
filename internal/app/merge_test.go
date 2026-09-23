@@ -142,6 +142,42 @@ func TestMergeScreenSurvivesAConfigThatGrewAStep(t *testing.T) {
 	}
 }
 
+// One counter used to mean both "merges done" and "where to look next", so a
+// selection that skipped the first PR merged #2 twice and never reached #3.
+func TestMergeRunVisitsEachSelectedPROnce(t *testing.T) {
+	m := threeStepModel()
+	m.dryRun = true
+	m.screen = ScreenMergeConfirmation
+	m.merge.selected = []bool{false, true, true}
+
+	next, _ := m.confirmAction()
+	m = next.(Model)
+	if m.screen != ScreenMerging {
+		t.Fatalf("screen = %v, want ScreenMerging", m.screen)
+	}
+	// A late refetch replacing the list must not change the run, or crash it.
+	m.merge.prs = nil
+	m.merge.selected = nil
+
+	var merged []uint64
+	for range 3 {
+		pr, ok := m.pendingMerge()
+		if !ok {
+			break
+		}
+		merged = append(merged, pr.PrNumber)
+		next, _ = m.handleMergeCompleteResult(mergeCompleteResult{result: models.MergeResult{PrNumber: pr.PrNumber, Success: true}})
+		m = next.(Model)
+	}
+
+	if len(merged) != 2 || merged[0] != 2 || merged[1] != 3 {
+		t.Errorf("merged %v, want [2 3]", merged)
+	}
+	if m.screen == ScreenMerging {
+		t.Error("still on the merging screen after every PR has a result")
+	}
+}
+
 // The QA note used to say "production" only for the StagingToMain enum value.
 func TestQaEnvironmentNamesTheLastStepProduction(t *testing.T) {
 	m := threeStepModel()

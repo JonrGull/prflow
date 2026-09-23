@@ -555,8 +555,7 @@ func populatedModel() Model {
 		{Repo: repos[2], PrNumber: 7, PrTitle: "日本語 リリース", URL: "https://github.com/acme/jp/pull/7", Flow: flows[0]},
 	}
 	m.merge.selected = []bool{true, false, true}
-	m.merge.total = 3
-	m.merge.current = 1
+	m.merge.queue = []models.MergePrEntry{m.merge.prs[0], m.merge.prs[2]}
 	m.merge.results = []models.MergeResult{
 		{RepoName: "Frontend/web-app", PrNumber: 101, PrTitle: "dev → staging", Success: true, URL: "https://github.com/acme/web-app/pull/101"},
 		{RepoName: "Backend/api-service", PrNumber: 55, PrTitle: "staging → main", Success: false, Error: strptr("merge conflict"), URL: "https://github.com/acme/api/pull/55"},

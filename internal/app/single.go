@@ -322,22 +322,18 @@ func (m Model) confirmAction() (tea.Model, tea.Cmd) {
 		}
 		return m.startBatchProcessing()
 	case ScreenMergeConfirmation:
-		// Count selected PRs
-		m.merge.total = 0
-		for _, selected := range m.merge.selected {
-			if selected {
-				m.merge.total++
+		m.merge.queue = nil
+		for i, selected := range m.merge.selected {
+			if selected && i < len(m.merge.prs) {
+				m.merge.queue = append(m.merge.queue, m.merge.prs[i])
 			}
 		}
-		m.merge.current = 0
+		if len(m.merge.queue) == 0 {
+			return m, nil
+		}
 		m.merge.results = nil
 		m.screen = ScreenMerging
-		// Find first selected PR
-		for i, selected := range m.merge.selected {
-			if selected {
-				return m, startMergingCmd(&m, i)
-			}
-		}
+		return m.mergeNext()
 	}
 	return m, nil
 }

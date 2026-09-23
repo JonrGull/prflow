@@ -32,9 +32,13 @@ type mergeState struct {
 	column  int
 	cursors []int
 
+	// queue is the PRs to merge, copied from selected on confirm so nothing
+	// done to prs or selected mid-run changes it. The next is
+	// queue[len(results)]. This used to be a single counter that was both
+	// "merges done" and "where to search next", which merged a PR twice and
+	// skipped the last whenever the first PR wasn't selected.
+	queue   []models.MergePrEntry
 	results []models.MergeResult
-	current int
-	total   int
 }
 
 // OpenPREntry holds repo info with its PR status
@@ -107,18 +111,10 @@ func fetchOpenPRsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 	}
 }
 
-func startMergingCmd(m *Model, prIndex int) tea.Cmd {
+// startMergingCmd takes the PR by value: the command runs off the UI
+// goroutine, so it must not read the Model.
+func startMergingCmd(pr models.MergePrEntry, dryRun bool) tea.Cmd {
 	return func() tea.Msg {
-		if prIndex >= len(m.merge.prs) {
-			return nil
-		}
-
-		pr := m.merge.prs[prIndex]
-		if prIndex >= len(m.merge.selected) || !m.merge.selected[prIndex] {
-			// Skip unselected PRs
-			return nil
-		}
-
 		base := models.MergeResult{
 			RepoName:   pr.Repo.DisplayName,
 			PrNumber:   pr.PrNumber,
@@ -129,7 +125,7 @@ func startMergingCmd(m *Model, prIndex int) tea.Cmd {
 			URL:        pr.URL,
 		}
 
-		if m.dryRun {
+		if dryRun {
 			return dryRunMergeResult(base)
 		}
 
@@ -184,26 +180,30 @@ func (m Model) handleOpenPRsFetchedResult(msg openPRsFetchedResult) (tea.Model, 
 
 func (m Model) handleMergeCompleteResult(msg mergeCompleteResult) (tea.Model, tea.Cmd) {
 	m.merge.results = append(m.merge.results, msg.result)
-	m.merge.current++
 
 	if msg.result.Success {
 		m.recordSessionPR(msg.result.RepoName, msg.result.URL, msg.result.Flow.Display(msg.result.MainBranch), "merged", msg.result.PrNumber)
 	}
 
-	if m.merge.current >= m.merge.total {
+	return m.mergeNext()
+}
+
+// pendingMerge is the next queued PR, or false once every one has a result.
+func (m Model) pendingMerge() (models.MergePrEntry, bool) {
+	next := len(m.merge.results)
+	if next >= len(m.merge.queue) {
+		return models.MergePrEntry{}, false
+	}
+	return m.merge.queue[next], true
+}
+
+// mergeNext starts the next queued merge, or finishes once all are done.
+func (m Model) mergeNext() (tea.Model, tea.Cmd) {
+	pr, ok := m.pendingMerge()
+	if !ok {
 		return m.finishMerging()
 	}
-
-	// Find next selected PR to merge
-	for i := m.merge.current; i < len(m.merge.prs); i++ {
-		if i < len(m.merge.selected) && m.merge.selected[i] {
-			return m, startMergingCmd(&m, i)
-		}
-		m.merge.current++
-	}
-
-	// No more PRs to merge
-	return m.finishMerging()
+	return m, startMergingCmd(pr, m.dryRun)
 }
 
 func (m Model) finishMerging() (tea.Model, tea.Cmd) {
