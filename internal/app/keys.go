@@ -296,6 +296,21 @@ var globalKeyHints = []keyHint{
 	{"Ctrl+C", "Quit", ui.ColorRed},
 }
 
+// anywhereHints returns globalKeyHints minus the tab keys on a busy screen,
+// where they are ignored.
+func (m Model) anywhereHints() []keyHint {
+	if !isBusy(m.screen) {
+		return globalKeyHints
+	}
+	var hints []keyHint
+	for _, h := range globalKeyHints {
+		if h.Key != "[ ]" {
+			hints = append(hints, h)
+		}
+	}
+	return hints
+}
+
 // keyHints returns the hints for the current screen.
 func (m Model) keyHints() []keyHint {
 	if fn, ok := dynamicKeyHints[m.screen]; ok {

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"reflect"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -46,7 +48,11 @@ func numKeyIndex(key string, maxItems int) (int, bool) {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if e, ok := msg.(epochMsg); ok {
 		if e.epoch != m.epoch {
-			return m, nil // answers a flow the user has since left
+			// Answers a flow the user has since left.
+			if a, ok := e.msg.(abandoner); ok {
+				a.abandon()
+			}
+			return m, nil
 		}
 		msg = e.msg
 	}
@@ -80,33 +86,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // run's result started a PR there, with the old title.
 //
 // Messages that are not flow results — the animation tick, the auth and update
-// checks, bubbletea's own — pass through untouched.
+// checks, bubbletea's own — pass through untouched. So do results that only
+// update data keyed to what they fetched and never move the screen, like a
+// pinned run's jobs: dropping those just leaves a panel waiting.
 type flowResult interface{ flowResult() }
+
+// abandoner is a flow result that holds something to release if it is dropped,
+// such as the cancel func for work it started.
+type abandoner interface{ abandon() }
 
 type epochMsg struct {
 	epoch uint64
 	msg   tea.Msg
 }
 
+var cmdType = reflect.TypeOf(tea.Cmd(nil))
+
 // tagEpoch wraps cmd so any flow result it produces carries epoch. It
-// recurses into tea.Batch, whose commands the runtime runs itself.
+// recurses into tea.Batch and tea.Sequence, whose commands the runtime runs
+// itself. Sequence's message type is unexported, so both are matched by
+// shape — a slice of commands — and rebuilt as the same type.
 func tagEpoch(epoch uint64, cmd tea.Cmd) tea.Cmd {
 	if cmd == nil {
 		return nil
 	}
 	return func() tea.Msg {
-		switch msg := cmd().(type) {
-		case flowResult:
-			return epochMsg{epoch: epoch, msg: msg}
-		case tea.BatchMsg:
-			tagged := make(tea.BatchMsg, len(msg))
-			for i, c := range msg {
-				tagged[i] = tagEpoch(epoch, c)
-			}
-			return tagged
-		default:
+		msg := cmd()
+		if r, ok := msg.(flowResult); ok {
+			return epochMsg{epoch: epoch, msg: r}
+		}
+		v := reflect.ValueOf(msg)
+		if v.Kind() != reflect.Slice || v.Type().Elem() != cmdType {
 			return msg
 		}
+		tagged := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := range v.Len() {
+			c, _ := v.Index(i).Interface().(tea.Cmd)
+			tagged.Index(i).Set(reflect.ValueOf(tagEpoch(epoch, c)))
+		}
+		return tagged.Interface()
 	}
 }
 

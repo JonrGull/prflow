@@ -182,7 +182,10 @@ type actionsJobsFetchedResult struct {
 	err   error
 }
 
-func (actionsJobsFetchedResult) flowResult() {}
+// actionsJobsFetchedResult is deliberately not a flowResult. It only fills the
+// pinned panel with its run ID and never moves the screen, so a late one is
+// harmless — but a dropped one left a completed run's panel on "Loading jobs"
+// for good, since completed runs are not fetched again.
 
 func fetchActionsRunsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 	return func() tea.Msg {

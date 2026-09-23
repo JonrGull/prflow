@@ -1,6 +1,7 @@
 package app
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/JonrGull/prflow/internal/config"
@@ -50,6 +51,51 @@ func TestTagEpochStampsOnlyFlowResults(t *testing.T) {
 	// bubbletea's own messages must reach it untouched, or quitting breaks.
 	if _, ok := tagEpoch(7, tea.Quit)().(tea.QuitMsg); !ok {
 		t.Error("tea.Quit was wrapped")
+	}
+
+	// tea.Sequence's message type is unexported, which is why it is matched
+	// by shape: left alone, a flow result inside one was never stamped.
+	seq := reflect.ValueOf(tagEpoch(7, tea.Sequence(
+		func() tea.Msg { return fetchCommitsResult{} },
+		func() tea.Msg { return tickMsg{} },
+	))())
+	if seq.Kind() != reflect.Slice || seq.Len() != 2 {
+		t.Fatalf("a sequence should stay a sequence of the same size, got %v", seq)
+	}
+	if e, ok := seq.Index(0).Interface().(tea.Cmd)().(epochMsg); !ok || e.epoch != 7 {
+		t.Error("a flow result inside tea.Sequence was not stamped")
+	}
+}
+
+// Dropping the result that carries the batch fetch's cancel func used to lose
+// it, leaving a goroutine per repo fetching for a run nobody would see.
+func TestDroppedBatchLoadCancelsItsFetch(t *testing.T) {
+	m := staleModel(ScreenPrTypeSelect)
+	m.epoch = 1
+	cancelled := false
+	m = send(t, m, epochMsg{epoch: 0, msg: batchReposLoadedResult{cancelFunc: func() { cancelled = true }}})
+	if !cancelled {
+		t.Error("a dropped batch load left its fetch running")
+	}
+	if m.screen != ScreenPrTypeSelect {
+		t.Errorf("a dropped batch load moved the user to %v", m.screen)
+	}
+}
+
+// A pinned run's jobs are keyed to the run and never move the screen, so they
+// are not dropped. When they were, a completed run pinned just before a tab
+// round trip stayed on "Loading jobs" for good.
+func TestPinnedJobsAfterATabRoundTripFillThePanel(t *testing.T) {
+	m := staleModel(ScreenActionsOverview)
+	m.actions.pinned = []actionsPanel{{Run: models.WorkflowRun{DatabaseID: 5}}}
+	late := tagEpoch(m.epoch, func() tea.Msg {
+		return actionsJobsFetchedResult{runID: 5, jobs: make([]models.WorkflowJob, 2)}
+	})()
+
+	m.newEpoch() // what ] then [ does
+	m = send(t, m, late)
+	if len(m.actions.pinned) != 1 || len(m.actions.pinned[0].Jobs) != 2 {
+		t.Errorf("pinned panel = %+v, want its 2 jobs", m.actions.pinned)
 	}
 }
 
