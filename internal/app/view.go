@@ -174,7 +174,7 @@ func (m Model) renderHelp() string {
 	}
 
 	section(strings.ToUpper(screenTitle(m.screen)), m.keyHints())
-	section("ANYWHERE", globalKeyHints)
+	section("ANYWHERE", m.anywhereHints())
 
 	lines = append(lines, ui.Dim.Render("  q closes this help. On most screens q quits;"))
 	lines = append(lines, ui.Dim.Render("  on the error screen it goes back instead."))

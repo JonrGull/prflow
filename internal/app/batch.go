@@ -320,6 +320,14 @@ type batchReposLoadedResult struct {
 
 func (batchReposLoadedResult) flowResult() {}
 
+// abandon stops the background fetch this result started: dropped as stale,
+// it is the only thing holding the cancel func.
+func (r batchReposLoadedResult) abandon() {
+	if r.cancelFunc != nil {
+		r.cancelFunc()
+	}
+}
+
 // Single repo commit fetch result (sent incrementally from background)
 type batchRepoCommitResult struct {
 	index   int
