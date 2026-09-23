@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/JonrGull/prflow/internal/config"
+	"github.com/JonrGull/prflow/internal/git"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -14,8 +15,14 @@ import (
 // repoTree builds a directory of real git repos matching the default globs.
 func repoTree(t *testing.T) string {
 	t.Helper()
+	return gitRepos(t, "frontend/web", "frontend/mobile", "backend/api")
+}
+
+// gitRepos builds a temp directory holding a git repo at each path.
+func gitRepos(t *testing.T, paths ...string) string {
+	t.Helper()
 	root := t.TempDir()
-	for _, r := range []string{"frontend/web", "frontend/mobile", "backend/api"} {
+	for _, r := range paths {
 		dir := filepath.Join(root, r)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
@@ -84,6 +91,9 @@ func TestFirstRunPreviewsBeforeSaving(t *testing.T) {
 	if len(m.firstRun.preview.Repos) != 3 {
 		t.Fatalf("found %d repos, want 3: %+v", len(m.firstRun.preview.Repos), m.firstRun.preview.Repos)
 	}
+	if m.firstRun.preview.Globs != nil {
+		t.Errorf("the default globs matched, so none should be detected: %+v", m.firstRun.preview.Globs)
+	}
 
 	// Second Enter accepts.
 	m, _ = pressEnter(m)
@@ -101,6 +111,49 @@ func TestFirstRunPreviewsBeforeSaving(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("config not written: %v", err)
+	}
+}
+
+// Setup only scanned frontend/* and backend/*, so repos kept directly under the
+// directory — the most common layout — found nothing and setup could not be
+// finished. The detected globs must also be what gets saved, or the main menu
+// would come up empty after setup said it found them.
+func TestFirstRunFindsAPlainLayout(t *testing.T) {
+	root := gitRepos(t, "web", "api", "work/svc")
+	if err := os.MkdirAll(filepath.Join(root, "notes"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	m := firstRunModel(t)
+	m.firstRun.value = ""
+	m = typeRunes(m, root)
+
+	m, cmd := pressEnter(m)
+	next, _ := m.handleFirstRunPreview(cmd().(firstRunPreviewResult))
+	m = next.(Model)
+	if len(m.firstRun.preview.Repos) != 3 {
+		t.Fatalf("found %d repos, want 3: %+v", len(m.firstRun.preview.Repos), m.firstRun.preview.Repos)
+	}
+
+	m, _ = pressEnter(m)
+	if m.screen != ScreenMainMenu {
+		t.Fatalf("screen = %v, want MainMenu", m.screen)
+	}
+
+	// Reload from disk, as the next launch would.
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []config.GlobEntry{{Pattern: "*", Group: "Repos"}, {Pattern: "work/*", Group: "Work"}}
+	if len(cfg.Globs) != len(want) || cfg.Globs[0] != want[0] || cfg.Globs[1] != want[1] {
+		t.Errorf("saved globs = %+v, want %+v", cfg.Globs, want)
+	}
+	repos, err := git.FindRepos(cfg.Paths.ReposDir, cfg.GlobEntries(), cfg.ExplicitRepos())
+	if err != nil || len(repos) != 3 {
+		t.Errorf("saved config finds %d repos (err %v), want 3", len(repos), err)
+	}
+	if diags := cfg.Validate(); len(diags) != 0 {
+		t.Errorf("saved config has diagnostics: %+v", diags)
 	}
 }
 

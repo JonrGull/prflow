@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/JonrGull/prflow/internal/config"
 	"github.com/JonrGull/prflow/internal/git"
@@ -40,22 +42,114 @@ type firstRunPreview struct {
 	Repos []models.RepoInfo
 	Err   error
 	Ran   bool
+
+	// Globs is set when the configured globs found nothing and the scan fell
+	// back to globs read off the directory's layout. Accepting saves them.
+	Globs []config.GlobEntry
 }
 
 // checkFirstRunPathCmd scans a candidate directory. It runs as a command
 // because globbing a large tree — especially over a network mount — can take a
 // moment, and blocking the UI on filesystem work is what the rest of this
 // session was spent removing.
+//
+// It tries the configured globs first. Those are frontend/* and backend/* on a
+// first run, so on their own a plain ~/Projects/<repo> layout found nothing and
+// the screen could never be accepted.
 func checkFirstRunPathCmd(cfg *config.Config, path string) tea.Cmd {
 	return func() tea.Msg {
-		repos, err := git.FindRepos(expandTilde(path), cfg.GlobEntries(), cfg.ExplicitRepos())
+		dir := expandTilde(path)
+		repos, err := git.FindRepos(dir, cfg.GlobEntries(), cfg.ExplicitRepos())
+
+		var detected []config.GlobEntry
+		if err == nil && len(repos) == 0 {
+			if detected = detectGlobs(dir); len(detected) > 0 {
+				globs := make([]models.GlobEntry, len(detected))
+				for i, g := range detected {
+					globs[i] = models.GlobEntry{Pattern: g.Pattern, Group: g.Group}
+				}
+				repos, err = git.FindRepos(dir, globs, cfg.ExplicitRepos())
+			}
+		}
+
 		return firstRunPreviewResult{preview: firstRunPreview{
 			Path:  path,
 			Repos: repos,
 			Err:   err,
 			Ran:   true,
+			Globs: detected,
 		}}
 	}
+}
+
+// detectGlobs describes where dir keeps its repos: "*" for repos directly in
+// it, and "<folder>/*" for each folder that holds repos one level down, grouped
+// by the folder's name — the same shape as the frontend/* default.
+func detectGlobs(dir string) []config.GlobEntry {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var globs []config.GlobEntry
+	direct := false
+	for _, e := range entries {
+		name := e.Name()
+		child := filepath.Join(dir, name)
+		// Skip hidden folders, and names a glob would read as a pattern.
+		if !isDir(child) || strings.HasPrefix(name, ".") || strings.ContainsAny(name, `*?[\`) {
+			continue
+		}
+		if git.IsGitRepo(child) {
+			direct = true
+			continue
+		}
+		if holdsRepos(child) {
+			first, size := utf8.DecodeRuneInString(name)
+			group := string(unicode.ToUpper(first)) + name[size:]
+			globs = append(globs, config.GlobEntry{Pattern: name + "/*", Group: group})
+		}
+	}
+
+	if direct {
+		globs = append([]config.GlobEntry{{Pattern: "*", Group: "Repos"}}, globs...)
+	}
+	return globs
+}
+
+// holdsRepos reports whether any folder directly inside dir is a git repo.
+func holdsRepos(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if child := filepath.Join(dir, e.Name()); isDir(child) && git.IsGitRepo(child) {
+			return true
+		}
+	}
+	return false
+}
+
+// isDir follows symlinks, as FindRepos does, so detection and discovery agree.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// columnsFor puts the first detected group on the left and the rest on the
+// right, replacing the Frontend/Backend defaults, which would otherwise be
+// flagged as columns naming groups nothing produces.
+func columnsFor(globs []config.GlobEntry) config.ColumnsConfig {
+	cols := config.ColumnsConfig{Right: []string{}}
+	for i, g := range globs {
+		if i == 0 {
+			cols.Left = []string{g.Group}
+		} else {
+			cols.Right = append(cols.Right, g.Group)
+		}
+	}
+	return cols
 }
 
 // expandTilde mirrors the expansion the config does, so the preview scans the
@@ -85,6 +179,10 @@ func (m Model) handleFirstRunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Second Enter on a successful scan accepts it.
 		if m.firstRun.preview.Ran && m.firstRun.preview.Path == path && len(m.firstRun.preview.Repos) > 0 {
 			m.config.Paths.ReposDir = path
+			if globs := m.firstRun.preview.Globs; len(globs) > 0 {
+				m.config.Globs = globs
+				m.config.Columns = columnsFor(globs)
+			}
 			// A dry run deliberately does not write, so it must not trap the
 			// user here — the setting holds for the rest of the session.
 			if err := m.saveConfig(); err != nil && !errors.Is(err, errDryRun) {
