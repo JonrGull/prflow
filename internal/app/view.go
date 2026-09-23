@@ -539,11 +539,11 @@ func (m Model) renderStatusBar() string {
 
 	// Add help/tab/fullscreen hints when not in text input mode
 	if !m.isTextInputActive() {
-		hints = append(hints,
-			ui.KeyBinding("?", "Help", ui.ColorDarkGray),
-			ui.KeyBinding("[ ]", "Tab", ui.ColorDarkGray),
-			ui.KeyBinding("F", "Fullscreen", ui.ColorDarkGray),
-		)
+		hints = append(hints, ui.KeyBinding("?", "Help", ui.ColorDarkGray))
+		if !isBusy(m.screen) {
+			hints = append(hints, ui.KeyBinding("[ ]", "Tab", ui.ColorDarkGray))
+		}
+		hints = append(hints, ui.KeyBinding("F", "Fullscreen", ui.ColorDarkGray))
 	}
 
 	// Flag config problems from anywhere, pointing at the screen that explains

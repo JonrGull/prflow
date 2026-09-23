@@ -33,10 +33,14 @@ type pullRepoResult struct {
 	result models.PullResult
 }
 
+func (pullRepoResult) flowResult() {}
+
 type pullReposLoadedResult struct {
 	repos []models.RepoInfo
 	err   error
 }
+
+func (pullReposLoadedResult) flowResult() {}
 
 // makePullResult creates a pullRepoResult with the given status
 func makePullResult(repo models.RepoInfo, status models.PullStatus, commits int, errMsg string) pullRepoResult {

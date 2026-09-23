@@ -102,9 +102,13 @@ type qaTagResultMsg struct {
 	results []linear.QaTagResult
 }
 
+func (qaTagResultMsg) flowResult() {}
+
 type qaTicketTitlesResult struct {
 	titles map[string]string
 }
+
+func (qaTicketTitlesResult) flowResult() {}
 
 type qaPersonLookupResult struct {
 	name string

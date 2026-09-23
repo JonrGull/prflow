@@ -105,6 +105,8 @@ type batchRepoResult struct {
 	result models.BatchResult
 }
 
+func (batchRepoResult) flowResult() {}
+
 type batchCommitsResult struct {
 	tickets          []string
 	existingPRs      int // Count of repos with existing PRs
@@ -112,10 +114,14 @@ type batchCommitsResult struct {
 	err              error
 }
 
+func (batchCommitsResult) flowResult() {}
+
 // batchProgressMsg is sent for real-time progress updates during batch processing
 type batchProgressMsg struct {
 	step string
 }
+
+func (batchProgressMsg) flowResult() {}
 
 // listenForProgress creates a subscription that listens to the progress channel
 func listenForProgress(ch chan string) tea.Cmd {
@@ -312,11 +318,15 @@ type batchReposLoadedResult struct {
 	err        error
 }
 
+func (batchReposLoadedResult) flowResult() {}
+
 // Single repo commit fetch result (sent incrementally from background)
 type batchRepoCommitResult struct {
 	index   int
 	commits []models.CommitInfo
 }
+
+func (batchRepoCommitResult) flowResult() {}
 
 // loadBatchReposCmd loads repos and starts background commit fetching
 func loadBatchReposCmd(cfg *config.Config, flow *models.Flow, dryRun bool, resultsChan chan batchRepoCommitResult) tea.Cmd {
@@ -1374,13 +1384,15 @@ func (m Model) renderBatchSummaryWithHeight(availableHeight int) string {
 	return ui.ColumnBox(content, " Batch Summary ", ui.ColorGreen, true, boxWidth, availableHeight)
 }
 
-// sendProgress safely sends a progress update to the channel
+// sendProgress sends a progress update without blocking. A send on a closed
+// channel still panics; the channel is only closed once the run's last
+// command has returned, and the tab keys are off while it runs.
 func sendProgress(ch chan string, step string) {
 	if ch != nil {
 		select {
 		case ch <- step:
 		default:
-			// Channel full or closed, skip
+			// Channel full, skip
 		}
 	}
 }

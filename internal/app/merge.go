@@ -55,9 +55,13 @@ type openPRsFetchedResult struct {
 	err        error
 }
 
+func (openPRsFetchedResult) flowResult() {}
+
 type mergeCompleteResult struct {
 	result models.MergeResult
 }
+
+func (mergeCompleteResult) flowResult() {}
 
 func fetchOpenPRsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 	return func() tea.Msg {

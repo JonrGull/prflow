@@ -41,18 +41,95 @@ func numKeyIndex(key string, maxItems int) (int, bool) {
 // It wraps dispatch so the animation tick can be restarted from one place:
 // any message may move the app into a state that animates (starting a fetch,
 // entering a progress screen), and the tick chain stops itself when idle.
+//
+// It is also where stale results are dropped; see flowResult.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if e, ok := msg.(epochMsg); ok {
+		if e.epoch != m.epoch {
+			return m, nil // answers a flow the user has since left
+		}
+		msg = e.msg
+	}
+
+	wasMenu := m.screen == ScreenMainMenu
 	next, cmd := m.dispatch(msg)
 
 	updated, ok := next.(Model)
 	if !ok {
 		return next, cmd
 	}
+	// Every exit from a flow passes through the main menu or a tab switch, so
+	// arriving here is where the flow's outstanding requests stop mattering.
+	if !wasMenu && updated.screen == ScreenMainMenu {
+		updated.newEpoch()
+	}
+	cmd = tagEpoch(updated.epoch, cmd)
+
 	if !updated.tickRunning && updated.needsAnimation() {
 		updated.tickRunning = true
 		return updated, tea.Batch(cmd, tickCmd())
 	}
 	return updated, cmd
+}
+
+// flowResult marks a message that answers a request some flow made. Update
+// stamps each one with the epoch it was requested in and drops it if the user
+// has moved on since, because the handlers all assume the screen that asked
+// is still showing. Before this, a result that landed late acted on whatever
+// came next: tabbing away mid-batch and ticking another repo meant the old
+// run's result started a PR there, with the old title.
+//
+// Messages that are not flow results — the animation tick, the auth and update
+// checks, bubbletea's own — pass through untouched.
+type flowResult interface{ flowResult() }
+
+type epochMsg struct {
+	epoch uint64
+	msg   tea.Msg
+}
+
+// tagEpoch wraps cmd so any flow result it produces carries epoch. It
+// recurses into tea.Batch, whose commands the runtime runs itself.
+func tagEpoch(epoch uint64, cmd tea.Cmd) tea.Cmd {
+	if cmd == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		switch msg := cmd().(type) {
+		case flowResult:
+			return epochMsg{epoch: epoch, msg: msg}
+		case tea.BatchMsg:
+			tagged := make(tea.BatchMsg, len(msg))
+			for i, c := range msg {
+				tagged[i] = tagEpoch(epoch, c)
+			}
+			return tagged
+		default:
+			return msg
+		}
+	}
+}
+
+// newEpoch abandons everything the current flow is waiting for: its results
+// will be dropped, so the flags that say they are coming are cleared too, or
+// a spinner and the refresh guards would wait for them forever.
+func (m *Model) newEpoch() {
+	m.epoch++
+	m.cancelBatchFetch()
+	m.batch.fetchPending = 0
+	m.allPRs.loading = false
+	m.actions.loading = false
+}
+
+// isBusy reports a screen running a write: creating PRs, merging, pulling,
+// replacing the binary. The tab keys are ignored there, because leaving would
+// abandon the run halfway and its remaining results would be dropped as stale.
+func isBusy(s Screen) bool {
+	switch s {
+	case ScreenCreating, ScreenBatchProcessing, ScreenMerging, ScreenPullProgress, ScreenUpdating:
+		return true
+	}
+	return false
 }
 
 func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -175,16 +252,6 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// tabScreens maps tab indices to the screens that belong to each tab
-func isTabScreen(s Screen) bool {
-	switch s {
-	case ScreenMainMenu, ScreenViewOpenPrs, ScreenViewAllPrs, ScreenActionsOverview,
-		ScreenBatchRepoSelect, ScreenBatchSummary, ScreenMergeSummary:
-		return true
-	}
-	return false
-}
-
 func (m *Model) isTextInputActive() bool {
 	switch m.screen {
 	case ScreenTitleInput, ScreenCommitReview:
@@ -214,6 +281,7 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.activeTab = tab
+	m.newEpoch()
 
 	// Use cached data for instant switching; fall back to loading
 	switch tab {
@@ -233,6 +301,11 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 	case 3: // All Open PRs — use cached if available
 		if len(m.allPRs.entries) > 0 {
 			m.screen = ScreenViewAllPrs
+			// The old refresh chain ended with the epoch, as the Actions one
+			// below does.
+			if m.allPRs.autoRefresh {
+				return m, allPRsRefreshTickCmd()
+			}
 			return m, nil
 		}
 		m.menuIndex = 3
@@ -282,12 +355,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Tab switching with [ and ] (blocked only during text input/filter).
+	// Tab switching with [ and ] (blocked during text input/filter, and while
+	// a write is running).
 	//
 	// Stepping from activeTabForDisplay rather than activeTab is what makes the
 	// main menu behave like the "no tab selected" it now looks like: from there
 	// ] enters Single instead of skipping past it to Batch.
-	if (msg.String() == "[" || msg.String() == "]") && !m.isTextInputActive() {
+	if (msg.String() == "[" || msg.String() == "]") && !m.isTextInputActive() && !isBusy(m.screen) {
 		current := m.activeTabForDisplay()
 		if msg.String() == "[" {
 			tab := current - 1

@@ -52,7 +52,11 @@ type allOpenPRsFetchedResult struct {
 	err     error
 }
 
+func (allOpenPRsFetchedResult) flowResult() {}
+
 type allPRsRefreshTickMsg struct{}
+
+func (allPRsRefreshTickMsg) flowResult() {}
 
 func allPRsRefreshTickCmd() tea.Cmd {
 	return tea.Tick(60*time.Second, func(_ time.Time) tea.Msg {

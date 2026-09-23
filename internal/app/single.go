@@ -26,12 +26,16 @@ type fetchCommitsResult struct {
 	err        error
 }
 
+func (fetchCommitsResult) flowResult() {}
+
 type prCreatedResult struct {
 	url      string
 	prNumber uint64
 	updated  bool
 	err      error
 }
+
+func (prCreatedResult) flowResult() {}
 
 func fetchCommitsCmd(repo *models.RepoInfo, flow *models.Flow, ticketRegex *regexp.Regexp, dryRun bool) tea.Cmd {
 	return func() tea.Msg {
@@ -94,6 +98,8 @@ type currentRepoLoadedResult struct {
 	repo *models.RepoInfo
 	err  error
 }
+
+func (currentRepoLoadedResult) flowResult() {}
 
 // loadCurrentRepoCmd loads info for the current repository
 func loadCurrentRepoCmd() tea.Cmd {
@@ -187,6 +193,9 @@ func (m Model) selectPrType() (tea.Model, tea.Cmd) {
 	}
 	flow := flows[m.menuIndex]
 	m.flow = &flow
+	// A new step is a new run. Esc from the batch repo list lands back here
+	// with the previous step's fetch still streaming results.
+	m.newEpoch()
 
 	if m.mode != nil && *m.mode == ModeBatch {
 		// Batch mode - load repos, then fetch commits in background
