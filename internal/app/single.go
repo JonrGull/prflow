@@ -5,7 +5,6 @@ import (
 	"math"
 	"regexp"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/JonrGull/prflow/internal/git"
 	"github.com/JonrGull/prflow/internal/github"
@@ -542,9 +541,6 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 			defaultTitle = m.flow.DefaultTitle(mainBranch)
 		}
 
-		borderStyle := ui.Yellow
-		cursorStyle := ui.Yellow
-
 		var displayText string
 		var textColor lipgloss.TerminalColor
 		if m.prTitle == "" {
@@ -554,22 +550,7 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 			displayText = m.prTitle
 			textColor = ui.ColorWhite
 		}
-		// Truncate display if too long (use rune count for proper Unicode width)
-		innerWidth := 40
-		maxLen := innerWidth - 1 // leave room for cursor
-		displayRunes := utf8.RuneCountInString(displayText)
-		if displayRunes > maxLen {
-			// Truncate by runes, not bytes
-			runes := []rune(displayText)
-			displayText = string(runes[:maxLen])
-			displayRunes = maxLen
-		}
-		textStyle := lipgloss.NewStyle().Foreground(textColor)
-		padding := innerWidth - displayRunes - 1 // -1 for cursor
-
-		leftLines = append(leftLines, borderStyle.Render("  ┌"+strings.Repeat("─", innerWidth)+"┐"))
-		leftLines = append(leftLines, borderStyle.Render("  │")+textStyle.Render(displayText)+cursorStyle.Render("█")+strings.Repeat(" ", padding)+borderStyle.Render("│"))
-		leftLines = append(leftLines, borderStyle.Render("  └"+strings.Repeat("─", innerWidth)+"┘"))
+		leftLines = append(leftLines, titleBox(displayText, textColor, 40)...)
 		leftLines = append(leftLines, "")
 	}
 
@@ -686,9 +667,6 @@ func (m Model) renderTitleInput() string {
 	leftLines = append(leftLines, "")
 
 	// Input box with yellow border
-	borderStyle := ui.Yellow
-	cursorStyle := ui.Yellow
-
 	var displayText string
 	var textColor lipgloss.TerminalColor
 	if m.prTitle == "" {
@@ -698,11 +676,7 @@ func (m Model) renderTitleInput() string {
 		displayText = m.prTitle
 		textColor = ui.ColorWhite
 	}
-	textStyle := lipgloss.NewStyle().Foreground(textColor)
-
-	leftLines = append(leftLines, borderStyle.Render("  ┌")+borderStyle.Render(strings.Repeat("─", 38))+borderStyle.Render("┐"))
-	leftLines = append(leftLines, borderStyle.Render("  │ ")+textStyle.Render(displayText)+cursorStyle.Render("█"))
-	leftLines = append(leftLines, borderStyle.Render("  └")+borderStyle.Render(strings.Repeat("─", 38))+borderStyle.Render("┘"))
+	leftLines = append(leftLines, titleBox(displayText, textColor, 38)...)
 	leftLines = append(leftLines, "")
 
 	hintStyle := ui.White
@@ -998,4 +972,29 @@ func (m Model) renderComplete() string {
 
 	titleStyle := ui.GreenBold
 	return panel(titleStyle, "Success", lines)
+}
+
+// titleBox draws the one-line title input: the text, a cursor, and a border
+// innerWidth columns wide between its corners.
+//
+// Widths are display columns, not runes: counting runes put a CJK or emoji
+// title past the right border, and the batch copy of this box drew no right
+// border at all and let a long title run out of it. A title too long to show
+// keeps its end, which is where the typing is.
+func titleBox(text string, textColor lipgloss.TerminalColor, innerWidth int) []string {
+	border := ui.Yellow
+	room := innerWidth - 2 // a space before the text, the cursor after it
+	if lipgloss.Width(text) > room {
+		r := []rune(text)
+		for len(r) > 0 && lipgloss.Width("…"+string(r)) > room {
+			r = r[1:]
+		}
+		text = "…" + string(r)
+	}
+	pad := strings.Repeat(" ", max(room-lipgloss.Width(text), 0))
+	return []string{
+		border.Render("  ┌" + strings.Repeat("─", innerWidth) + "┐"),
+		border.Render("  │ ") + lipgloss.NewStyle().Foreground(textColor).Render(text) + border.Render("█") + pad + border.Render("│"),
+		border.Render("  └" + strings.Repeat("─", innerWidth) + "┘"),
+	}
 }

@@ -433,16 +433,24 @@ func applyViewportScroll(lines []string, headerLines int, highlightedLine int, v
 	return strings.Join(append(header, visibleContent...), "\n")
 }
 
-// truncateString truncates a string to maxLen runes, adding ellipsis if needed
-func truncateString(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
+// truncateString cuts s to maxWidth display columns, ending in an ellipsis
+// when anything was cut.
+//
+// It used to count runes, so a CJK or emoji title — two columns a rune — came
+// back up to twice as wide as asked, and pushed the All PRs status columns off
+// their row.
+func truncateString(s string, maxWidth int) string {
+	if lipgloss.Width(s) <= maxWidth {
 		return s
 	}
-	if maxLen < 1 {
+	if maxWidth < 1 {
 		return ""
 	}
-	return string(runes[:maxLen-1]) + "…"
+	r := []rune(s)
+	for len(r) > 0 && lipgloss.Width(string(r))+1 > maxWidth {
+		r = r[:len(r)-1]
+	}
+	return string(r) + "…"
 }
 
 // revealRunes returns the first n characters of s for the typewriter effect.

@@ -426,9 +426,9 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 			// Branch flow — truncate then pad
 			branchFlow := fmt.Sprintf("%s → %s", entry.PR.HeadBranch, entry.PR.BaseBranch)
 			maxBranch := branchW - 2 // account for parens
-			if len(branchFlow) > maxBranch {
-				branchFlow = branchFlow[:maxBranch-3] + "..."
-			}
+			// By display width: slicing bytes here split the three-byte "→"
+			// and printed invalid UTF-8.
+			branchFlow = truncateString(branchFlow, maxBranch)
 			col3 := visPad(sBranch.Render("("+branchFlow+")"), branchW)
 
 			// Comment count — styled, then visually padded
