@@ -7,35 +7,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// TabNames are the labels for the top-level navigation tabs
-var TabNames = []string{"Single", "Batch", "Release PRs", "All Open PRs", "Actions"}
-
-// TabColors are the colors for each tab
-var TabColors = []lipgloss.TerminalColor{ColorCyan, ColorMagenta, ColorYellow, ColorBlue, ColorOrange}
-
-// RenderTabBar renders a horizontal tab bar with the active tab highlighted
-func RenderTabBar(activeTab int, width int) string {
-	dimStyle := lipgloss.NewStyle().Foreground(ColorDarkGray)
-	var tabs []string
-	for i, name := range TabNames {
-		if i == activeTab {
-			style := lipgloss.NewStyle().
-				Foreground(ColorOnAccent).
-				Background(TabColors[i]).
-				Bold(true).
-				Padding(0, 1)
-			tabs = append(tabs, style.Render(name))
-		} else {
-			style := lipgloss.NewStyle().
-				Foreground(TabColors[i]).
-				Padding(0, 1)
-			tabs = append(tabs, style.Render(name))
-		}
-	}
-	bar := strings.Join(tabs, dimStyle.Render("│"))
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, bar)
-}
-
 // SectionHeader creates a styled section header with a title and color
 // Example: "─── TITLE ───────────"
 func SectionHeader(title string, color lipgloss.TerminalColor) string {
@@ -186,7 +157,7 @@ func Arrow(selected bool) string {
 // KeyBinding renders a key binding hint
 func KeyBinding(key, description string, color lipgloss.TerminalColor) string {
 	keyStyle := lipgloss.NewStyle().Foreground(color).Bold(true)
-	descStyle := lipgloss.NewStyle().Foreground(ColorWhite)
+	descStyle := lipgloss.NewStyle().Foreground(ColorDarkGray)
 
 	return fmt.Sprintf("%s %s",
 		keyStyle.Render(key),

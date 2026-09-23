@@ -30,7 +30,7 @@ type Model struct {
 	menuIndex  int
 	shouldQuit bool
 	activeTab  int  // 0=Single, 1=Batch, 2=Release PRs, 3=All Open PRs, 4=Actions
-	fullscreen bool // hides banner + tabs
+	fullscreen bool // hides the header
 
 	// epoch counts flows left behind; results from an older one are dropped.
 	// See flowResult in update.go.
@@ -112,7 +112,7 @@ var errDryRun = errors.New("dry run — config not written")
 //
 // Every call site used to discard this error, so a read-only config directory,
 // a full disk, or a bad path failed completely silently — the setting appeared
-// to stick until the next launch. copyFeedback renders in the status bar on
+// to stick until the next launch. copyFeedback renders in the footer on
 // every screen; settings.feedback is picked up by the settings screen.
 //
 // It returns the error as well as displaying it, because setting the feedback

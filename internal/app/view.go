@@ -15,23 +15,24 @@ import (
 // The view shell: the frame every screen draws inside, and the helpers they all
 // share.
 //
-// The screens themselves live in their own files — view.go renders the banner,
-// the tabs, the status bar and the help overlay, then hands the middle to
+// The screens themselves live in their own files — view.go renders the header,
+// the footer and the help overlay, then hands the middle to
 // renderContentWithHeight. Adding a screen means adding a case there and an
 // entry in screenTitles; forgetting either renders an empty box rather than
 // failing.
 
 // minContentHeight is the floor View puts under the height it hands a screen.
-// Below this the banner and status bar have already taken the terminal, so the
+// Below this the header and footer have already taken the terminal, so the
 // content overflows whatever it is given — the screens size themselves against
 // this value rather than against something smaller they can never receive.
 const minContentHeight = 10
 
 // minTerminalHeight is the shortest terminal in which a height-aware screen can
-// actually fit. Under it the banner, tabs and status bar have taken the window
-// and minContentHeight still insists on room for content, so the view overflows
-// by design; F (fullscreen) drops the banner and tabs and buys back seven rows.
-const minTerminalHeight = 25
+// actually fit. Under it the header and footer have taken the window and
+// minContentHeight still insists on room for content, so the view overflows by
+// design; F (fullscreen) drops the header and buys back three rows. It was 25
+// while the header was a five-row ASCII wordmark.
+const minTerminalHeight = 19
 
 // The outer box the simpler screens sit inside: a rounded border top and bottom,
 // plus a blank padding row either side. Named so the height charged for it and
@@ -84,44 +85,12 @@ func (m Model) View() string {
 	// has to know which.
 	boxed := !isFullLayoutScreen(m.screen) || m.showHelp
 
-	// The chrome is drawn first and then measured, rather than described by a
-	// set of constants that have to be kept in step with it. The banner has
-	// size tiers and the status bar wraps, so its height is not knowable up
-	// front — and guessing it low pushes the content off the bottom of the
-	// terminal without anything failing.
+	header, statusBar, availableHeight := m.chrome()
+
 	var sections []string
-	if !m.fullscreen {
-		sections = append(sections,
-			ui.RenderBanner(m.dryRun, contentWidth),
-			// The main menu is not one of the tabs: highlighting Single there
-			// claims you are in a flow you have not chosen yet.
-			ui.RenderTabBar(m.activeTabForDisplay(), contentWidth))
+	if header != "" {
+		sections = append(sections, header)
 	}
-	statusBar := m.renderStatusBar()
-
-	chrome := 0
-	for _, s := range sections {
-		chrome += lipgloss.Height(s) + 1 // +1 for the newline joining sections
-	}
-	if statusBar != "" {
-		chrome += lipgloss.Height(statusBar) + 1
-	}
-	chrome += 3 // blank line before the status bar, and the frame's border rows
-
-	// Deliberately not charging the outer box's two padding rows on top.
-	// A review argued they were missing and that boxed screens therefore render
-	// two rows too tall; measuring says otherwise. availableHeight is
-	// m.height - chrome and a height-aware screen fills exactly that, so the
-	// total is m.height whatever chrome is — moving rows between the two only
-	// changes how much content is shown. The overflow that prompted the claim
-	// is minContentHeight below: at a 24-row terminal chrome is 18, leaving 6,
-	// and the floor insists on 10.
-
-	availableHeight := m.height - chrome
-	if availableHeight < minContentHeight {
-		availableHeight = minContentHeight
-	}
-
 	if boxed {
 		outerBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -133,21 +102,84 @@ func (m Model) View() string {
 	} else {
 		sections = append(sections, m.renderContentWithHeight(availableHeight))
 	}
+	body := strings.Join(sections, "\n")
 
-	// Status bar, rendered above so its height could be measured.
-	sections = append(sections, "")
-	sections = append(sections, statusBar)
-
-	content := strings.Join(sections, "\n")
+	// The footer sits on the bottom row rather than straight under the content,
+	// so it does not float halfway up a short screen. At least one blank line
+	// always separates them, which is the row chrome() charges for.
+	if statusBar != "" {
+		gap := max(m.height-lipgloss.Height(body)-lipgloss.Height(statusBar), 1)
+		body += strings.Repeat("\n", gap+1) + statusBar
+	}
 
 	// Center horizontally in the terminal
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Top, content)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Top, body)
+}
+
+// frameWidth is the width of the outer box, border included. The header and
+// footer span it, so the three line up.
+func (m Model) frameWidth() int {
+	return m.contentWidth() + 2
+}
+
+// chrome renders the header and footer and returns the height left between
+// them for the screen.
+//
+// The chrome is drawn and then measured, rather than described by constants
+// that have to be kept in step with it: the header sheds content by width and
+// the footer wraps, so neither height is knowable up front — and guessing low
+// pushes the content off the bottom of the terminal without anything failing.
+// It is a method so a key handler can size its scrolling against the same
+// number the renderer is handed; Actions used to guess from a banner height and
+// scroll its cursor out of sight.
+//
+// The outer box's two padding rows are deliberately not charged. availableHeight
+// is m.height minus chrome and a height-aware screen fills exactly that, so the
+// total is m.height whatever chrome is — moving rows between the two only
+// changes how much content is shown.
+func (m Model) chrome() (header, footer string, availableHeight int) {
+	if !m.fullscreen {
+		header = m.renderHeader()
+	}
+	footer = m.renderStatusBar()
+
+	used := 0
+	if header != "" {
+		used += lipgloss.Height(header) + 1 // +1 for the newline joining it
+	}
+	if footer != "" {
+		used += lipgloss.Height(footer) + 1
+	}
+	used += 3 // blank line before the footer, and the frame's border rows
+
+	return header, footer, max(m.height-used, minContentHeight)
+}
+
+// renderHeader draws the brand, tabs and metadata line.
+func (m Model) renderHeader() string {
+	var meta []string
+	if m.ghUser != "" {
+		meta = append(meta, "gh: "+m.ghUser)
+	}
+	if m.version != "" {
+		meta = append(meta, "v"+update.VersionDisplay(m.version))
+	}
+	if m.updateCheckInProgress {
+		meta = append(meta, "checking for updates "+ui.Spinner(m.spinnerFrame))
+	}
+	return ui.RenderHeader(ui.HeaderInfo{
+		// The main menu is not one of the tabs: highlighting Single there
+		// claims you are in a flow you have not chosen yet.
+		ActiveTab: m.activeTabForDisplay(),
+		DryRun:    m.dryRun,
+		Meta:      strings.Join(meta, " · "),
+	}, m.frameWidth())
 }
 
 // renderHelp lists the current screen's bindings alongside the global ones.
 //
-// Both come from the same tables the status bar reads, so the overlay cannot
-// drift from what the keys actually do. The status bar only has room for the
+// Both come from the same tables the footer reads, so the overlay cannot
+// drift from what the keys actually do. The footer only has room for the
 // current screen's hints, which left the global keys — and the fact that `?`
 // exists at all — documented nowhere but the source.
 func (m Model) renderHelp() string {
@@ -518,113 +550,59 @@ func truncateVisible(s string, width int) string {
 	return b.String()
 }
 
+// renderStatusBar draws the footer: a rule, then the current screen's key hints
+// wrapped to the frame. The gh user and version used to share a box with the
+// hints; they are in the header now.
 func (m Model) renderStatusBar() string {
+	width := m.frameWidth()
+	rule := lipgloss.NewStyle().Foreground(ui.ColorBorder).Render(strings.Repeat("─", width))
+
+	var hints []string
 	if m.showHelp {
-		return lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ui.ColorDarkGray).
-			Padding(0, 1).
-			Render(ui.KeyBinding("Esc", "Close help", ui.ColorYellow))
-	}
-
-	hints := make([]string, 0, len(m.keyHints()))
-	for _, h := range m.keyHints() {
-		hints = append(hints, ui.KeyBinding(h.Key, h.Desc, h.Color))
-	}
-
-	installedVersion := ""
-	if m.version != "" {
-		installedVersion = update.VersionDisplay(m.version)
-	}
-
-	// Add help/tab/fullscreen hints when not in text input mode
-	if !m.isTextInputActive() {
-		hints = append(hints, ui.KeyBinding("?", "Help", ui.ColorDarkGray))
-		if !isBusy(m.screen) {
-			hints = append(hints, ui.KeyBinding("[ ]", "Tab", ui.ColorDarkGray))
+		hints = []string{ui.KeyBinding("Esc", "Close help", ui.ColorYellow)}
+	} else {
+		for _, h := range m.keyHints() {
+			hints = append(hints, ui.KeyBinding(h.Key, h.Desc, h.Color))
 		}
-		hints = append(hints, ui.KeyBinding("F", "Fullscreen", ui.ColorDarkGray))
-	}
-
-	// Flag config problems from anywhere, pointing at the screen that explains
-	// them. Without this the only symptom of a broken config is an empty list.
-	if n := len(m.configDiagnostics); n > 0 && m.screen != ScreenSettings {
-		color := ui.ColorYellow
-		if config.HasErrors(m.configDiagnostics) {
-			color = ui.ColorRed
+		// Help/tab/fullscreen hints, except while a text input takes the keys.
+		if !m.isTextInputActive() {
+			hints = append(hints, ui.KeyBinding("?", "Help", ui.ColorDarkGray))
+			if !isBusy(m.screen) {
+				hints = append(hints, ui.KeyBinding("[ ]", "Tabs", ui.ColorDarkGray))
+			}
+			hints = append(hints, ui.KeyBinding("F", "Fullscreen", ui.ColorDarkGray))
 		}
-		hints = append(hints, ui.KeyBinding("o", fmt.Sprintf("⚠ %d config issue(s)", n), color))
-	}
 
-	// Don't render an empty box if there are no hints or version
-	if len(hints) == 0 && m.copyFeedback == "" && installedVersion == "" {
+		// Flag config problems from anywhere, pointing at the screen that
+		// explains them. Without this the only symptom of a broken config is an
+		// empty list.
+		if n := len(m.configDiagnostics); n > 0 && m.screen != ScreenSettings {
+			color := ui.ColorYellow
+			if config.HasErrors(m.configDiagnostics) {
+				color = ui.ColorRed
+			}
+			hints = append(hints, ui.KeyBinding("o", fmt.Sprintf("⚠ %d config issue(s)", n), color))
+		}
+
+		if m.copyFeedback != "" {
+			feedbackStyle := ui.GreenBold
+			if strings.HasPrefix(m.copyFeedback, "✗") {
+				feedbackStyle = ui.RedBold
+			}
+			hints = append(hints, feedbackStyle.Render(m.copyFeedback))
+		}
+	}
+	if len(hints) == 0 {
 		return ""
 	}
 
-	borderStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorDarkGray).
-		Padding(0, 1)
-
-	// Add copy feedback if present
-	if m.copyFeedback != "" {
-		feedbackStyle := ui.GreenBold
-		if strings.HasPrefix(m.copyFeedback, "✗") {
-			feedbackStyle = ui.RedBold
-		}
-		hints = append(hints, feedbackStyle.Render("│  "+m.copyFeedback))
+	// Padded to the frame, because View centres each line on its own and a
+	// short hint line would otherwise drift off the rule's left edge.
+	lines := []string{rule}
+	for _, l := range packHints(hints, width-1) {
+		lines = append(lines, visPad(" "+l, width))
 	}
-
-	// The hints used to be one joined line, which the terminal simply cut off —
-	// the main menu's list is 22 columns too wide even at 120.
-	var contentLines []string
-	hotkeyLines := packHints(hints, m.contentWidth()-4) // border 2 + padding 2
-	contentLines = append(contentLines, hotkeyLines...)
-	hotkeysLine := ""
-	if len(hotkeyLines) > 0 {
-		hotkeysLine = hotkeyLines[0]
-		for _, l := range hotkeyLines[1:] {
-			if lipgloss.Width(l) > lipgloss.Width(hotkeysLine) {
-				hotkeysLine = l
-			}
-		}
-	}
-
-	if installedVersion != "" || m.ghUser != "" {
-		versionStyle := ui.Dim
-		var infoParts []string
-		if installedVersion != "" {
-			infoParts = append(infoParts, fmt.Sprintf("Version: %s", installedVersion))
-		}
-		if m.ghUser != "" {
-			infoParts = append(infoParts, fmt.Sprintf("gh: %s", m.ghUser))
-		}
-		infoLine := strings.Join(infoParts, "  •  ")
-		if m.updateCheckInProgress {
-			spinnerStyle := ui.Cyan
-			infoLine = fmt.Sprintf("%s  •  Checking updates %s", infoLine, spinnerStyle.Render(ui.Spinner(m.spinnerFrame)))
-		}
-
-		// The metadata was allowed to widen the bar past the hints, and nothing
-		// bounded it by the terminal — a long gh login or release tag pushed the
-		// whole status box off the edge. It is the one line here that is not
-		// under our control, so it gets cut rather than the box.
-		inner := m.contentWidth() - 4 // border 2 + padding 2
-		if lipgloss.Width(infoLine) > inner {
-			infoLine = truncateVisible(infoLine, inner)
-		}
-
-		targetWidth := lipgloss.Width(hotkeysLine)
-		if w := lipgloss.Width(infoLine); w > targetWidth {
-			targetWidth = w
-		}
-		if targetWidth > 0 {
-			infoLine = lipgloss.PlaceHorizontal(targetWidth, lipgloss.Center, infoLine)
-		}
-		contentLines = append(contentLines, versionStyle.Render(infoLine))
-	}
-
-	return borderStyle.Render(strings.Join(contentLines, "\n"))
+	return strings.Join(lines, "\n")
 }
 
 // ptrEqual compares two string pointers for equality

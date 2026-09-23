@@ -152,16 +152,19 @@ func (m *Model) adjustActionsRunScroll(filtered []int) {
 	}
 }
 
+// actionsVisibleLines is how many run-list lines renderActionsOverviewWithHeight
+// shows. It starts from the height the renderer is handed rather than guessing
+// the chrome, which it used to do from a banner height: the guess said 22
+// lines where 16 were drawn, so the cursor scrolled out of sight.
 func (m *Model) actionsVisibleLines() int {
-	bannerLines := 5
-	if m.dryRun {
-		bannerLines += 2
-	}
-	panelHeight := m.height - bannerLines - 3 - 3 - 6 // banner, gaps, status, title+filter
-	if panelHeight < 5 {
-		panelHeight = 5
-	}
-	return panelHeight - 1 // -1 for ColumnBox title
+	_, _, available := m.chrome()
+	return actionsPanelHeight(available) - 1 // -1 for ColumnBox title
+}
+
+// actionsPanelHeight is the run and pinned panels' height, shared by the
+// renderer and the scroll arithmetic so the two cannot disagree.
+func actionsPanelHeight(availableHeight int) int {
+	return max(availableHeight-6, 5) // title bar and filter box above
 }
 
 type actionsRunsFetchedResult struct {
@@ -548,10 +551,7 @@ func (m Model) renderActionsOverviewWithHeight(availableHeight int) string {
 	// Build left panel: repo-grouped run list
 	leftLines := m.renderActionsRunList(filtered, leftWidth)
 
-	panelHeight := availableHeight - 6
-	if panelHeight < 5 {
-		panelHeight = 5
-	}
+	panelHeight := actionsPanelHeight(availableHeight)
 
 	// Scroll is tracked in the key handler (adjustActionsRunScroll)
 	visibleLines := panelHeight - 1 // -1 for ColumnBox title

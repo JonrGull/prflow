@@ -49,7 +49,7 @@ It is the right way to try a build you have not run before.
 ### Navigation
 
 Press `?` in the app for the bindings on the current screen — that list is
-generated from the same table the status bar uses, so it is always current.
+generated from the same table the footer uses, so it is always current.
 The keys that work almost everywhere:
 
 | Key | Action |
@@ -62,7 +62,7 @@ The keys that work almost everywhere:
 | `/` | Enter filter mode (actions) |
 | `o` | Open in browser |
 | `[` / `]` | Previous/next tab |
-| `F` | Toggle fullscreen (hides banner and tabs) |
+| `F` | Toggle fullscreen (hides the header) |
 | `Esc` | Go back |
 | `q` | Quit — except on the error screen, where it goes back |
 | `Ctrl+C` | Quit from anywhere |

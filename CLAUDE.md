@@ -35,7 +35,7 @@ go test ./internal/app -update               # Re-record screen goldens after an
     `pull.go`, `qatag.go`, `settings.go`, `listedit.go`, `firstrun.go`,
     `history.go`, `selfupdate.go`, `errorscreen.go`
   - `screens.go` - Screen enum (29 screens) and AppMode (Single/Batch)
-  - `keys.go` - Per-screen key hints as data (status bar + `?` overlay)
+  - `keys.go` - Per-screen key hints as data (footer + `?` overlay)
   - `prstatus.go` - The derived review/CI/preview rules for the all-PRs table
   - `flows.go` - The configured release steps, and the colour palettes every
     screen indexes them by
@@ -88,7 +88,7 @@ MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confir
 
 **Screens own their state:** each screen's fields live in a struct in its own file (`batchState`, `actionsState`, …) and hang off Model as one field. This is what makes `reset()` correct: it assigns zero values instead of listing fields. The previous per-field version had drifted to missing about twenty, including `existingPR` — which meant a second single-PR run in a session began believing the new repo's PR already existed. Fields genuinely shared across screens (`prType`, `tickets`, `prTitle`) stay flat on Model, and are named as shared there.
 
-**Key hints are data, not code:** `keys.go` holds `staticKeyHints` (screens whose hints never vary) and `dynamicKeyHints` (screens whose hints depend on state). Both the status bar and the `?` overlay render `m.keyHints()`, so the help can't drift from what the screen actually does. Add a screen → add its entry here, or it shows no hints. Note that `q` does *not* mean the same thing everywhere — on `ScreenError` it means "back" — so there is deliberately no global quit handler.
+**Key hints are data, not code:** `keys.go` holds `staticKeyHints` (screens whose hints never vary) and `dynamicKeyHints` (screens whose hints depend on state). Both the footer and the `?` overlay render `m.keyHints()`, so the help can't drift from what the screen actually does. Add a screen → add its entry here, or it shows no hints. Note that `q` does *not* mean the same thing everywhere — on `ScreenError` it means "back" — so there is deliberately no global quit handler.
 
 **Adding a screen touches six places**, and missing one fails quietly: the `Screen` enum and its `String()` (`screens.go`), the `renderContentWithHeight` switch and `screenTitles` (`view.go`), the `handleKey` switch (`update.go`), and `dynamicKeyHints` or `staticKeyHints` (`keys.go`). A screen with a text input needs `isTextInputActive` too, or `?` and the tab keys steal keystrokes mid-word. Add a golden case while you are there.
 
@@ -98,7 +98,7 @@ MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confir
 
 **Config writes:** every one goes through `Model.saveConfig`, which is also where `--dry-run` stops them — the flag promises to make no changes, and the config is the only thing the app writes outside a repo. It returns `errDryRun` in that case, which is not a failure: the in-memory change stands, so the editors keep working and simply report that nothing was written. `Config.Save()` marshals the whole struct and so loses user comments — call it only for deliberate settings changes. Machine-written values (update check time, skipped version) belong in `prflow-state.toml` via `Config.State()`, which is why merely launching the app no longer rewrites the user's TOML. All writes are atomic (temp file + rename).
 
-**Config validation:** `Config.Validate()` returns `[]Diagnostic`. It exists because a bad path, an empty glob, and a group assigned to no column all used to produce the same symptom — an empty list. Diagnostics render on the settings screen and are flagged in the status bar elsewhere. Column names are compared case-insensitively, matching `LeftGroups()`; comparing them raw made `left = ['frontend']` against a `Frontend` glob report a warning about a config that worked.
+**Config validation:** `Config.Validate()` returns `[]Diagnostic`. It exists because a bad path, an empty glob, and a group assigned to no column all used to produce the same symptom — an empty list. Diagnostics render on the settings screen and are flagged in the footer elsewhere. Column names are compared case-insensitively, matching `LeftGroups()`; comparing them raw made `left = ['frontend']` against a `Frontend` glob report a warning about a config that worked.
 
 **Settings are descriptors, not screens:** `settingsFields` in `settings.go` describes each row — a `Bool`/`Toggle` pair, a `Get`/`Set` pair, or an `Opens` naming a list. Adding a setting is one entry; there is no per-field code in the renderer or the key handler. `Set` may return an error, which leaves the config untouched and shows why (that is what stops an invalid ticket regex from silently disabling extraction).
 
