@@ -525,39 +525,6 @@ func packHints(hints []string, width int) []string {
 	return lines
 }
 
-// truncateVisible cuts a rendered string to width, counting display columns and
-// not the ANSI escapes between them.
-func truncateVisible(s string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	var b strings.Builder
-	shown := 0
-	for i := 0; i < len(s); {
-		if s[i] == 0x1b {
-			// Copy the escape through without charging it any width.
-			start := i
-			for i < len(s) && s[i] != 'm' {
-				i++
-			}
-			if i < len(s) {
-				i++
-			}
-			b.WriteString(s[start:i])
-			continue
-		}
-		r := []rune(s[i:])[0]
-		w := lipgloss.Width(string(r))
-		if shown+w > width {
-			break
-		}
-		b.WriteRune(r)
-		shown += w
-		i += len(string(r))
-	}
-	return b.String()
-}
-
 // renderStatusBar draws the footer: a rule, then the current screen's key hints
 // wrapped to the frame. The gh user and version used to share a box with the
 // hints; they are in the header now.
