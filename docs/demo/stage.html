@@ -1,0 +1,213 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<style>
+@font-face{font-family:"JBM";src:url(node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2) format("woff2");font-weight:400}
+@font-face{font-family:"JBM";src:url(node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2) format("woff2");font-weight:700}
+@font-face{font-family:"Inter";src:url(node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2) format("woff2");font-weight:400}
+@font-face{font-family:"Inter";src:url(node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2) format("woff2");font-weight:500}
+@font-face{font-family:"Inter";src:url(node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2) format("woff2");font-weight:700}
+@font-face{font-family:"Inter";src:url(node_modules/@fontsource/inter/files/inter-latin-800-normal.woff2) format("woff2");font-weight:800}
+:root{--bg:#070a13;--ink:#e8ecf4;--dim:#7d8699;--faint:#3a4152;--a1:#8b5cf6;--a2:#22d3ee;--a3:#34d399}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);font-family:"Inter","DejaVu Sans",system-ui,sans-serif;color:var(--ink)}
+#bg{position:absolute;inset:0;background:
+  radial-gradient(900px 700px at 12% 18%, rgba(139,92,246,.30), transparent 60%),
+  radial-gradient(900px 700px at 92% 88%, rgba(34,211,238,.20), transparent 60%),
+  radial-gradient(700px 500px at 60% 10%, rgba(52,211,153,.10), transparent 60%), var(--bg)}
+#grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(1200px 800px at 50% 50%,#000 30%,transparent 80%)}
+
+/* left rail */
+#rail{position:absolute;left:64px;top:70px;width:500px;height:940px}
+.brand{display:flex;align-items:center;gap:16px}
+.mark{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--a1),var(--a2));display:grid;place-items:center;box-shadow:0 10px 40px rgba(139,92,246,.45)}
+.mark svg{width:26px;height:26px}
+.word{font-size:44px;font-weight:800;letter-spacing:-1.5px}
+.tag{margin-top:14px;font-size:19px;color:var(--dim);line-height:1.45;max-width:440px}
+#chapters{margin-top:56px;display:flex;flex-direction:column;gap:6px}
+.ch{display:flex;align-items:center;gap:16px;padding:11px 16px;border-radius:12px;font-size:21px;color:var(--faint);transition:none;position:relative}
+.ch .n{font-family:JBM,monospace;font-size:15px;width:28px;color:inherit;opacity:.9}
+.ch .bar{position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:linear-gradient(var(--a1),var(--a2));opacity:0}
+#caption{position:absolute;left:0;top:560px;width:480px;font-size:33px;font-weight:700;line-height:1.22;letter-spacing:-.4px}
+#caption .sub{display:block;margin-top:14px;font-size:17px;font-weight:500;color:var(--dim);letter-spacing:0}
+#keys{position:absolute;left:0;bottom:0;display:flex;gap:10px;align-items:flex-end;height:64px}
+.key{font-family:JBM,monospace;font-size:20px;font-weight:700;padding:10px 16px;border-radius:11px;background:linear-gradient(#262c3b,#171b25);border:1px solid #3b4357;border-bottom-width:4px;color:#f1f4fa;box-shadow:0 8px 24px rgba(0,0,0,.35);white-space:nowrap}
+
+/* window */
+#win{position:absolute;left:600px;top:66px;width:1256px;height:948px;border-radius:16px;background:#0d1117;border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 50px 140px rgba(0,0,0,.65),0 0 0 1px rgba(0,0,0,.4),0 0 80px rgba(139,92,246,.10);overflow:hidden}
+.tb{height:40px;display:flex;align-items:center;padding:0 16px;gap:8px;background:linear-gradient(#161b26,#11151e);border-bottom:1px solid rgba(255,255,255,.06)}
+.dot{width:13px;height:13px;border-radius:50%}
+.tb .title{position:absolute;left:0;right:0;text-align:center;font-size:14px;color:var(--dim);font-family:JBM,monospace;pointer-events:none}
+#view{position:absolute;left:0;right:0;top:40px;bottom:0;overflow:hidden}
+#cam{position:absolute;left:16px;top:14px;transform-origin:0 0}
+#fade{position:absolute;inset:0;pointer-events:none;opacity:0;background:linear-gradient(90deg,#0d1117 0,rgba(13,17,23,0) 140px,rgba(13,17,23,0) calc(100% - 140px),#0d1117 100%),linear-gradient(#0d1117 0,rgba(13,17,23,0) 90px,rgba(13,17,23,0) calc(100% - 90px),#0d1117 100%)}
+
+/* intro / outro */
+.card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
+.card .word{font-size:128px;letter-spacing:-5px;background:linear-gradient(90deg,#fff 20%,#c4b5fd 60%,#67e8f9);-webkit-background-clip:text;color:transparent}
+.card .line{margin-top:10px;font-size:32px;color:#aab2c5}
+.chain{margin-top:54px;display:flex;align-items:center;gap:0}
+.pill{font-family:JBM,monospace;font-size:28px;font-weight:700;padding:12px 26px;border-radius:999px;border:2px solid;background:rgba(255,255,255,.03)}
+.arrow{width:110px;height:2px;margin:0 14px;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,.7));position:relative;transform-origin:0 50%}
+.arrow:after{content:"";position:absolute;right:-2px;top:-6px;border:7px solid transparent;border-left:10px solid rgba(255,255,255,.7)}
+.cmd{margin-top:56px;font-family:JBM,monospace;font-size:23px;padding:20px 30px;border-radius:14px;background:#0f141d;border:1px solid #2a3243;color:#d7dcea;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.cmd b{color:var(--a3)}
+.url{margin-top:26px;font-size:22px;color:var(--dim);font-family:JBM,monospace}
+</style></head>
+<body>
+<div id="bg"></div><div id="grid"></div>
+
+<div id="rail">
+  <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/><path d="M6 8.4v7.2M8.2 6.8c5 .6 7.5 2.2 8 3.3"/></svg></div><div class="word">prflow</div></div>
+  <div class="tag">Release PRs across every repo — opened, reviewed and merged from one terminal.</div>
+  <div id="chapters"></div>
+  <div id="caption"></div>
+  <div id="keys"></div>
+</div>
+
+<div id="win">
+  <div class="tb"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div>
+    <div class="title">prflow --dry-run — ~/work/acme</div></div>
+  <div id="view"><div id="cam"><div id="t"></div></div><div id="fade"></div></div>
+</div>
+
+<div class="card" id="intro">
+  <div class="word">prflow</div>
+  <div class="line">Ship the release train across every repo.</div>
+  <div class="chain" id="chain"></div>
+</div>
+<div class="card" id="outro">
+  <div class="word" style="font-size:112px">prflow</div>
+  <div class="line">Open, review and merge release PRs everywhere at once.</div>
+  <div class="cmd">curl -fsSL https://raw.githubusercontent.com/JonrGull/prflow/main/install.sh | <b>bash</b></div>
+  <div class="url">github.com/JonrGull/prflow</div>
+</div>
+
+<script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="node_modules/@xterm/addon-unicode11/lib/addon-unicode11.js"></script>
+<script>
+const INTRO = 3.4, OUTRO = 4.6;
+const CHAPTERS = [
+  ["Pick repos",   ["Pick the release step", "Choose repos — commits load in the background"]],
+  ["Review",       ["Tickets are pulled straight from the commits", "Review every change before anything is created"]],
+  ["Create PRs",   ["Created or updated in every repo, one at a time"]],
+  ["Merge",        ["Every open release PR, one column per step", "Merge the whole step at once"]],
+  ["Track",        ["Reviews, CI, previews and E2E at a glance"]],
+  ["Actions",      ["Watch GitHub Actions live"]],
+];
+const SUBS = {
+  "One TUI for your whole release train": "dev → staging → main, or whatever chain your team uses.",
+  "Choose repos — commits load in the background": "Two columns, grouped your way. Nothing waits on the network.",
+  "Review every change before anything is created": "Commits, tickets and which PRs already exist.",
+  "Created or updated in every repo, one at a time": "Idempotent: an existing PR is updated, not duplicated.",
+  "Merge the whole step at once": "Select a column, confirm, done.",
+  "Reviews, CI, previews and E2E at a glance": "Every open PR across every repo, in one table.",
+  "Watch GitHub Actions live": "Pin runs to follow their jobs as they finish.",
+};
+const CHAIN = [["dev", "#22d3ee"], ["staging", "#fbbf24"], ["main", "#a78bfa"]];
+
+const clamp = (x, a=0, b=1) => Math.min(b, Math.max(a, x));
+const ease = x => { x = clamp(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2; };
+const out = x => 1 - Math.pow(1 - clamp(x), 3);
+const $ = id => document.getElementById(id);
+
+let TL, term, cell, written = 0, dur;
+window.boot = async (timeline) => {
+  TL = timeline; dur = TL.duration;
+  await document.fonts.load('17px JBM'); await document.fonts.load('bold 17px JBM');
+  for (const w of [400, 500, 700, 800]) await document.fonts.load(`${w} 20px Inter`);
+  term = new Terminal({cols: TL.cols, rows: TL.rows, fontSize: 17, lineHeight: 1.0, customGlyphs: true, allowProposedApi: true,
+    fontFamily: 'JBM, "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", "Noto Color Emoji", monospace',
+    theme: {background: '#0d1117', foreground: '#e6edf3', cursor: '#0d1117', cursorAccent: '#0d1117'}});
+  term.loadAddon(new Unicode11Addon.Unicode11Addon()); term.unicode.activeVersion = '11';
+  term.open($('t'));
+  cell = term._core._renderService.dimensions.css.cell;
+  $('chapters').innerHTML = CHAPTERS.map(([n], i) => `<div class="ch" id="ch${i}"><div class="bar"></div><span class="n">0${i+1}</span>${n}</div>`).join('');
+  $('chain').innerHTML = CHAIN.map(([b, c], i) => (i ? `<div class="arrow" id="ar${i}"></div>` : '') +
+    `<div class="pill" id="pl${i}" style="color:${c};border-color:${c}55;box-shadow:0 0 40px ${c}33">${b}</div>`).join('');
+  TL.caps = TL.events.filter(e => e[1] === 'c'); TL.keys = TL.events.filter(e => e[1] === 'k'); TL.zooms = TL.events.filter(e => e[1] === 'z');
+  TL.out = TL.events.filter(e => e[1] === 'o');
+  return INTRO + dur + OUTRO;
+};
+
+const latest = (list, r) => { let e = null; for (const x of list) { if (x[0] <= r) e = x; else break; } return e; };
+const prevOf = (list, e) => { const i = list.indexOf(e); return i > 0 ? list[i-1] : null; };
+
+// The camera scales #cam about its own top-left, which sits at (16, 14) in the
+// view. It centres the target rect, then clamps so no edge beyond the
+// terminal ever shows.
+function camFor(rect) {
+  const vw = 1256, vh = 948 - 40;
+  if (!rect) return {s: 1, x: 0, y: 0};
+  const s = Math.min(1.42, (vw - 40) / (rect.w * cell.width), (vh - 30) / (rect.h * cell.height));
+  const lx = (rect.x + rect.w / 2) * cell.width, ly = (rect.y + rect.h / 2) * cell.height;
+  const W = TL.cols * cell.width, H = TL.rows * cell.height;
+  const x = clamp(vw / 2 - 16 - s * lx, vw - 32 - s * W, 0);
+  const y = clamp(vh / 2 - 14 - s * ly, vh - 28 - s * H, 0);
+  return {s, x, y};
+}
+
+window.frame = async (T) => {
+  const r = T - INTRO;
+
+  // Terminal output up to r.
+  let chunk = '';
+  while (written < TL.out.length && TL.out[written][0] <= r) chunk += TL.out[written++][2];
+  if (chunk) await new Promise(res => term.write(chunk, res));
+
+  // Intro card, then the rail and window arriving.
+  const ip = T / INTRO;
+  $('intro').style.opacity = String(clamp(T / .5) * (1 - clamp((T - (INTRO - .55)) / .5)));
+  $('intro').style.transform = `scale(${1 + .04 * out(T / INTRO)}) translateY(${-16 * ease((T - (INTRO - .6)) / .6)}px)`;
+  CHAIN.forEach((_, i) => {
+    const a = clamp((T - .7 - i * .45) / .4);
+    const p = $('pl' + i); p.style.opacity = a; p.style.transform = `translateY(${(1 - out(a)) * 18}px) scale(${.92 + .08 * out(a)})`;
+    if (i) { const ar = $('ar' + i); const b = clamp((T - .5 - i * .45) / .35); ar.style.transform = `scaleX(${out(b)})`; ar.style.opacity = b; }
+  });
+  const enter = ease((T - (INTRO - .45)) / .9);
+  const leave = ease((r - dur) / .8);
+  $('win').style.opacity = enter * (1 - leave);
+  $('win').style.transform = `translateX(${(1 - enter) * 120}px) scale(${(.96 + .04 * enter) * (1 - .03 * leave)})`;
+  $('rail').style.opacity = enter * (1 - leave);
+  $('rail').style.transform = `translateX(${(enter - 1) * 60}px)`;
+  const op = ease((r - dur - .5) / .9);
+  $('outro').style.opacity = op;
+  $('outro').style.transform = `translateY(${(1 - op) * 24}px)`;
+
+  // Caption, with its chapter.
+  const c = latest(TL.caps, r); const text = c ? c[2] : '';
+  const age = c ? r - c[0] : 9;
+  const capEl = $('caption');
+  if (capEl.dataset.t !== text) { capEl.dataset.t = text; capEl.innerHTML = text ? `${text}<span class="sub">${SUBS[text] || ''}</span>` : ''; }
+  const ca = out(age / .45);
+  capEl.style.opacity = ca; capEl.style.transform = `translateY(${(1 - ca) * 14}px)`;
+  const chi = CHAPTERS.findIndex(([, caps]) => caps.includes(text));
+  let lastCh = window._lastCh ?? -1; if (chi >= 0) lastCh = window._lastCh = chi;
+  CHAPTERS.forEach((_, i) => {
+    const el = $('ch' + i); const on = i === lastCh, done = i < lastCh;
+    el.style.color = on ? '#f4f6fb' : done ? '#8e97aa' : '#3a4152';
+    el.style.background = on ? 'rgba(139,92,246,.14)' : 'transparent';
+    el.querySelector('.bar').style.opacity = on ? 1 : 0;
+  });
+
+  // Keycaps pressed in the last 1.3s.
+  const recent = TL.keys.filter(k => k[0] <= r && r - k[0] < 1.3).slice(-4);
+  const kk = $('keys'); const html = recent.map(k => `<div class="key" data-t="${k[0]}">${k[2]}</div>`).join('');
+  if (kk.dataset.h !== html) { kk.dataset.h = html; kk.innerHTML = html; }
+  kk.querySelectorAll('.key').forEach(el => {
+    const a = r - Number(el.dataset.t);
+    const inn = out(a / .18), fade = 1 - clamp((a - 1.0) / .3);
+    el.style.opacity = inn * fade; el.style.transform = `translateY(${(1 - inn) * 10}px) scale(${.9 + .1 * inn})`;
+  });
+
+  // Camera: ease from the previous target to the current one.
+  const z = latest(TL.zooms, r);
+  const to = camFor(z ? z[2] : null), from = camFor(z ? (prevOf(TL.zooms, z) || [0, 'z', null])[2] : null);
+  const k = z ? ease((r - z[0]) / .9) : 1;
+  const s = from.s + (to.s - from.s) * k, x = from.x + (to.x - from.x) * k, y = from.y + (to.y - from.y) * k;
+  $('cam').style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  $('fade').style.opacity = String(clamp((s - 1) / .25));
+};
+</script>
+</body></html>
