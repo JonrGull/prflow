@@ -32,6 +32,10 @@ type Model struct {
 	activeTab  int  // 0=Single, 1=Batch, 2=Release PRs, 3=All Open PRs, 4=Actions
 	fullscreen bool // hides banner + tabs
 
+	// epoch counts flows left behind; results from an older one are dropped.
+	// See flowResult in update.go.
+	epoch uint64
+
 	// Mode
 	mode *AppMode
 

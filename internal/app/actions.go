@@ -170,13 +170,19 @@ type actionsRunsFetchedResult struct {
 	err        error
 }
 
+func (actionsRunsFetchedResult) flowResult() {}
+
 type actionsRefreshTickMsg struct{}
+
+func (actionsRefreshTickMsg) flowResult() {}
 
 type actionsJobsFetchedResult struct {
 	runID uint64
 	jobs  []models.WorkflowJob
 	err   error
 }
+
+func (actionsJobsFetchedResult) flowResult() {}
 
 func fetchActionsRunsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 	return func() tea.Msg {
