@@ -228,3 +228,25 @@ func TestEveryInteractiveScreenHasHints(t *testing.T) {
 		}
 	}
 }
+
+// The batch repo list filters as you type, but was not a text input, so F,
+// ?, [ and ] toggled fullscreen, opened help or switched tab mid-word. Once
+// something is typed they go to the filter; before that they keep working.
+func TestBatchFilterKeepsItsKeystrokes(t *testing.T) {
+	m := Model{screen: ScreenBatchRepoSelect, config: testConfig()}
+	m.batch.filter = "web"
+	for _, k := range []string{"F", "?", "[", "]"} {
+		m = pressKey(m, k)
+	}
+	if m.screen != ScreenBatchRepoSelect || m.showHelp || m.fullscreen {
+		t.Errorf("screen %v, help %v, fullscreen %v: a filter key was taken as a shortcut", m.screen, m.showHelp, m.fullscreen)
+	}
+	if m.batch.filter != "webF?[]" {
+		t.Errorf("filter = %q, want every key typed into it", m.batch.filter)
+	}
+
+	empty := Model{screen: ScreenBatchRepoSelect, config: testConfig()}
+	if !pressKey(empty, "?").showHelp {
+		t.Error("with nothing typed, ? should still open help")
+	}
+}

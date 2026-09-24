@@ -271,6 +271,11 @@ func (m *Model) isTextInputActive() bool {
 		return true
 	case ScreenActionsOverview:
 		return m.actions.filterActive
+	case ScreenBatchRepoSelect:
+		// This list filters as you type, with no mode to enter. Once something
+		// is typed, F ? [ ] belong to the filter; before that they keep
+		// working, or the screen would lose help and the tab keys entirely.
+		return m.batch.filter != ""
 	case ScreenFirstRun:
 		return true
 	case ScreenListEdit:
