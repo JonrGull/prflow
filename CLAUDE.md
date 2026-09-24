@@ -108,7 +108,9 @@ MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confir
 
 **Animation tick:** the 80ms tick chain stops when `needsAnimation()` is false and `Update` restarts it when state changes. If you add something that animates on an otherwise-static screen, add it to `needsAnimation()` or it will appear frozen.
 
-**Tests are deliberately narrow.** There is no CI. The suite covers three things:
+**Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
+`go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
+pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
 golden renders of every screen plus its interesting states (61 cases in
 `internal/app/testdata/screens/`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record

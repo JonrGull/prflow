@@ -10,8 +10,14 @@ permissions:
   contents: write
 
 jobs:
+  # Also run here, not only in auto-tag.yml: a tag pushed by hand or a manual
+  # dispatch comes straight to this workflow.
+  test:
+    uses: ./.github/workflows/test.yml
+
   build:
     name: Build binaries
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -74,9 +80,13 @@ jobs:
             mv "$dir$name" "release/$name"
           done
           chmod +x release/*
+          # Published so a download can be checked against what was built.
+          (cd release && sha256sum prflow-* > SHA256SUMS)
 
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        # Pinned to a commit: this step holds contents: write, and a tag can be
+        # moved. v1 ran on a Node version Actions no longer supports.
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: release/*
           generate_release_notes: true

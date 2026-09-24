@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    # Docs do not change the binary, so they do not cut a release.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 permissions:
   contents: write
@@ -14,8 +18,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tag:
+  test:
     if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
+    uses: ./.github/workflows/test.yml
+
+  # Every push to main used to be tagged and released without running a test.
+  tag:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
