@@ -219,6 +219,16 @@ func TestComputeCIStatus(t *testing.T) {
 			[]models.CheckRun{check("deploy-preview", "COMPLETED", "FAILURE"), check("build", "COMPLETED", "SUCCESS")},
 			"success",
 		},
+		// Only "failure" used to count, so these all showed a green tick.
+		{"timed out", []models.CheckRun{check("build", "COMPLETED", "TIMED_OUT")}, "failure"},
+		{"cancelled", []models.CheckRun{check("build", "COMPLETED", "CANCELLED")}, "failure"},
+		{"startup failure", []models.CheckRun{check("build", "COMPLETED", "STARTUP_FAILURE")}, "failure"},
+		{"action required", []models.CheckRun{check("build", "COMPLETED", "ACTION_REQUIRED")}, "failure"},
+		{"commit status error", []models.CheckRun{check("ci/circleci", "COMPLETED", "ERROR")}, "failure"},
+		// And only in_progress and queued counted as unfinished.
+		{"waiting on approval", []models.CheckRun{check("deploy", "WAITING", "")}, "pending"},
+		{"commit status pending", []models.CheckRun{check("vercel", "PENDING", "")}, "pending"},
+		{"skipped and neutral pass", []models.CheckRun{check("a", "COMPLETED", "SKIPPED"), check("b", "COMPLETED", "NEUTRAL")}, "success"},
 	}
 
 	for _, tt := range tests {

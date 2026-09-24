@@ -180,11 +180,13 @@ func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
 								statusCheckRollup {
 									contexts(first: 50) {
 										nodes {
+											__typename
 											... on CheckRun {
 												name
 												workflowName: checkSuite { workflowRun { workflow { name } } }
 												status conclusion
 											}
+											... on StatusContext { context state }
 										}
 									}
 								}
@@ -299,18 +301,7 @@ type searchPRNode struct {
 			Commit struct {
 				StatusCheckRollup struct {
 					Contexts struct {
-						Nodes []struct {
-							Name         string `json:"name"`
-							WorkflowName struct {
-								WorkflowRun struct {
-									Workflow struct {
-										Name string `json:"name"`
-									} `json:"workflow"`
-								} `json:"workflowRun"`
-							} `json:"workflowName"`
-							Status     string `json:"status"`
-							Conclusion string `json:"conclusion"`
-						} `json:"nodes"`
+						Nodes []checkContextNode `json:"nodes"`
 					} `json:"contexts"`
 				} `json:"statusCheckRollup"`
 			} `json:"commit"`
@@ -360,6 +351,52 @@ type searchPRNode struct {
 	} `json:"commits"`
 }
 
+// checkContextNode is one entry in a commit's status rollup. GitHub mixes two
+// kinds there: check runs (Actions and other GitHub Apps) and commit statuses
+// (Vercel, CircleCI, Jenkins and anything else using the older status API).
+type checkContextNode struct {
+	TypeName     string `json:"__typename"`
+	Name         string `json:"name"`
+	WorkflowName struct {
+		WorkflowRun struct {
+			Workflow struct {
+				Name string `json:"name"`
+			} `json:"workflow"`
+		} `json:"workflowRun"`
+	} `json:"workflowName"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion"`
+
+	// StatusContext fields.
+	Context string `json:"context"`
+	State   string `json:"state"` // EXPECTED, ERROR, FAILURE, PENDING, SUCCESS
+}
+
+// check converts the node, or reports false for a kind it does not know.
+//
+// The query used to ask only for check runs, so every commit status came back
+// as an empty object — which the CI column counted as a pass. A failing Vercel
+// or CircleCI status showed a green tick.
+func (n checkContextNode) check() (models.CheckRun, bool) {
+	switch n.TypeName {
+	case "CheckRun":
+		return models.CheckRun{
+			Name:         n.Name,
+			WorkflowName: n.WorkflowName.WorkflowRun.Workflow.Name,
+			Status:       n.Status,
+			Conclusion:   n.Conclusion,
+		}, true
+	case "StatusContext":
+		cr := models.CheckRun{Name: n.Context, Status: "PENDING"}
+		switch strings.ToUpper(n.State) {
+		case "SUCCESS", "FAILURE", "ERROR":
+			cr.Status, cr.Conclusion = "COMPLETED", strings.ToUpper(n.State)
+		}
+		return cr, true
+	}
+	return models.CheckRun{}, false
+}
+
 func (n searchPRNode) toGhPr() models.GhPr {
 	pr := models.GhPr{
 		Number:     n.Number,
@@ -375,12 +412,9 @@ func (n searchPRNode) toGhPr() models.GhPr {
 	// Status checks
 	if len(n.StatusCheckRollup.Nodes) > 0 {
 		for _, ctx := range n.StatusCheckRollup.Nodes[0].Commit.StatusCheckRollup.Contexts.Nodes {
-			pr.StatusCheckRollup = append(pr.StatusCheckRollup, models.CheckRun{
-				Name:         ctx.Name,
-				WorkflowName: ctx.WorkflowName.WorkflowRun.Workflow.Name,
-				Status:       ctx.Status,
-				Conclusion:   ctx.Conclusion,
-			})
+			if cr, ok := ctx.check(); ok {
+				pr.StatusCheckRollup = append(pr.StatusCheckRollup, cr)
+			}
 		}
 	}
 

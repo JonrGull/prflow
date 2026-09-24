@@ -147,6 +147,26 @@ func computeReviewStatus(entry *allPREntry, unresponded int) string {
 	return "current"
 }
 
+// failedConclusions are every way GitHub says a check finished without
+// passing. Only "failure" used to count, so a timed-out or cancelled run — and
+// a commit status reporting ERROR — showed as a green tick.
+var failedConclusions = map[string]bool{
+	"FAILURE": true, "TIMED_OUT": true, "CANCELLED": true,
+	"STARTUP_FAILURE": true, "ACTION_REQUIRED": true, "ERROR": true,
+}
+
+// checkFailed reports a check that finished without passing.
+func checkFailed(cr models.CheckRun) bool {
+	return failedConclusions[strings.ToUpper(cr.Conclusion)]
+}
+
+// checkPending reports a check that has not finished: queued, running,
+// waiting on approval, or a commit status still expected. Matching only
+// in_progress and queued let the rest count as passes.
+func checkPending(cr models.CheckRun) bool {
+	return cr.Status != "" && !strings.EqualFold(cr.Status, "completed")
+}
+
 // computeCIStatus aggregates every check except those with their own column.
 func computeCIStatus(checks []models.CheckRun) string {
 	hasAny, hasFailure, hasPending := false, false, false
@@ -156,9 +176,9 @@ func computeCIStatus(checks []models.CheckRun) string {
 		}
 		hasAny = true
 		switch {
-		case strings.EqualFold(cr.Conclusion, "failure"):
+		case checkFailed(cr):
 			hasFailure = true
-		case strings.EqualFold(cr.Status, "in_progress"), strings.EqualFold(cr.Status, "queued"):
+		case checkPending(cr):
 			hasPending = true
 		}
 	}
@@ -181,9 +201,9 @@ func computePreviewStatus(checks []models.CheckRun) string {
 			continue
 		}
 		switch {
-		case strings.EqualFold(cr.Conclusion, "failure"):
+		case checkFailed(cr):
 			return "failure"
-		case strings.EqualFold(cr.Status, "in_progress"), strings.EqualFold(cr.Status, "queued"):
+		case checkPending(cr):
 			return "pending"
 		case strings.EqualFold(cr.Conclusion, "success"):
 			return "success"
