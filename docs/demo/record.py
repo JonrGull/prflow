@@ -46,10 +46,11 @@ STORY = [
     ("key", "]", 2.6),
     ("key", "DOWN", 0.6), ("key", "DOWN", 0.6), ("key", "DOWN", 2.2),
     ("cap", "Watch GitHub Actions live", 0.4),
-    ("key", "]", 2.6),
-    ("key", "SPACE", 0.7), ("key", "DOWN", 0.4), ("key", "SPACE", 0.9),
-    ("zoom", {"x": 50, "y": 6, "w": 68, "h": 16}, 3.4),
-    ("zoom", None, 1.0),
+    ("key", "]", 2.4),
+    ("key", "DOWN", 0.5), ("key", "DOWN", 0.5), ("key", "DOWN", 1.4),
+    ("zoom", {"x": 64, "y": 5, "w": 54, "h": 16}, 2.8),
+    ("zoom", None, 0.6),
+    ("key", "SPACE", 1.8),
     ("cap", "", 0.6),
 ]
 
