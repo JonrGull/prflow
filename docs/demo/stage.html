@@ -89,6 +89,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 <script>
 const INTRO = 3.4, OUTRO = 4.6;
 const CHAPTERS = [
+  ["Home",         ["The whole release on one screen"]],
   ["Pick repos",   ["Pick the release step", "Choose repos — commits load in the background"]],
   ["Review",       ["Tickets are pulled straight from the commits", "Review every change before anything is created"]],
   ["Create PRs",   ["Created or updated in every repo, one at a time"]],
@@ -98,6 +99,7 @@ const CHAPTERS = [
 ];
 const SUBS = {
   "One TUI for your whole release train": "dev → staging → main, or whatever chain your team uses.",
+  "The whole release on one screen": "Commits waiting at each step, PR health, and what is blocked.",
   "Choose repos — commits load in the background": "Two columns, grouped your way. Nothing waits on the network.",
   "Review every change before anything is created": "Commits, tickets and which PRs already exist.",
   "Created or updated in every repo, one at a time": "Idempotent: an existing PR is updated, not duplicated.",

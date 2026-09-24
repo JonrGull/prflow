@@ -17,6 +17,10 @@ KEYS = {"ENTER": ("\r", "⏎ Enter"), "ESC": ("\x1b", "Esc"), "SPACE": (" ", "Sp
 STORY = [
     ("wait", None, 1.6),
     ("cap", "One TUI for your whole release train", 2.2),
+    ("cap", "The whole release on one screen", 0.4),
+    ("zoom", {"x": 3, "y": 7, "w": 58, "h": 15}, 2.6),
+    ("zoom", {"x": 60, "y": 7, "w": 58, "h": 15}, 2.8),
+    ("zoom", None, 0.8),
     ("key", "2", 1.1),
     ("cap", "Pick the release step", 0.9),
     ("key", "ENTER", 2.6),
