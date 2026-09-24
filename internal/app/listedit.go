@@ -193,6 +193,9 @@ var listSettings = map[string]listSetting{
 			if head == base {
 				return fmt.Errorf("a step cannot merge %s into itself", head)
 			}
+			if strings.HasPrefix(head, "-") || strings.HasPrefix(base, "-") {
+				return fmt.Errorf("a branch name cannot start with -")
+			}
 			return nil
 		},
 		Hint: func(c *config.Config) string {

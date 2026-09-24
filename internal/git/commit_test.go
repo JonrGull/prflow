@@ -124,3 +124,19 @@ func TestNestedClonesAreListed(t *testing.T) {
 		t.Errorf("found %+v, want Backend/meta/svc", repos)
 	}
 }
+
+// A branch from the config reaches git's argument list, where one starting
+// with - is an option: --upload-pack=cmd runs a command.
+func TestBranchNamesCannotBeOptions(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "ran")
+	err := FetchBranches(t.TempDir(), []string{"--upload-pack=touch " + marker})
+	if err == nil || !strings.Contains(err.Error(), "cannot start with -") {
+		t.Errorf("err = %v, want the name refused", err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("the option ran")
+	}
+	if _, err := CheckoutAndPull(t.TempDir(), "-b"); err == nil || !strings.Contains(err.Error(), "cannot start with -") {
+		t.Errorf("checkout err = %v, want the name refused", err)
+	}
+}

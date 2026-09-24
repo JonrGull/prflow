@@ -112,8 +112,22 @@ func DetectMainBranch(repo *git.Repository) (string, error) {
 	return "main", nil
 }
 
+// checkBranchName refuses a branch name git would read as an option: a
+// configured branch like --upload-pack=cmd would otherwise run a command.
+func checkBranchName(branch string) error {
+	if strings.HasPrefix(branch, "-") {
+		return fmt.Errorf("invalid branch name %q: it cannot start with -", branch)
+	}
+	return nil
+}
+
 // FetchBranches fetches specified branches from origin using git CLI (to inherit SSH agent)
 func FetchBranches(repoPath string, branches []string) error {
+	for _, b := range branches {
+		if err := checkBranchName(b); err != nil {
+			return err
+		}
+	}
 	args := append([]string{"fetch", "origin"}, branches...)
 
 	output, err := run.Combined(run.Network, repoPath, "git", args...)
@@ -301,6 +315,9 @@ func IsDirty(repoPath string) (bool, error) {
 
 // CheckoutAndPull checks out the branch and pulls, returning commit count
 func CheckoutAndPull(repoPath, branch string) (int, error) {
+	if err := checkBranchName(branch); err != nil {
+		return 0, err
+	}
 	// Get current commit before pull
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
