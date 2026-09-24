@@ -516,7 +516,16 @@ func GetRepoNWO(repoPath string) (string, error) {
 	return "", fmt.Errorf("cannot parse NWO from remote URL: %s", url)
 }
 
-// GeneratePRBody generates PR body with ticket links using Linear magic words
+// The PR body markers. prflow owns only the text between them, so a
+// description or checklist someone adds to the PR survives the next update.
+const (
+	bodyStart = "<!-- prflow:tickets -->"
+	bodyEnd   = "<!-- /prflow:tickets -->"
+)
+
+// GeneratePRBody returns the ticket section prflow writes into a PR body, or ""
+// when there are no tickets. Without a Linear org the tickets are listed
+// plainly: linking them built linear.app//issue/... URLs.
 func GeneratePRBody(tickets []string, linearOrg string) string {
 	if len(tickets) == 0 {
 		return ""
@@ -524,11 +533,56 @@ func GeneratePRBody(tickets []string, linearOrg string) string {
 
 	var lines []string
 	for _, t := range tickets {
-		line := fmt.Sprintf("### - Closes [%s](https://linear.app/%s/issue/%s)", t, linearOrg, strings.ToLower(t))
-		lines = append(lines, line)
+		if linearOrg == "" {
+			lines = append(lines, "### - Closes "+t)
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("### - Closes [%s](https://linear.app/%s/issue/%s)", t, linearOrg, strings.ToLower(t)))
 	}
 
-	return fmt.Sprintf("# Tickets\n\n%s", strings.Join(lines, "\n"))
+	return fmt.Sprintf("%s\n# Tickets\n\n%s\n%s", bodyStart, strings.Join(lines, "\n"), bodyEnd)
+}
+
+// mergeBody puts section — GeneratePRBody's output, possibly empty — into an
+// existing PR body in place of prflow's previous section, keeping everything
+// else.
+//
+// Updating a PR used to send the generated section as the whole body, so
+// re-running a release wiped whatever people had written on the PR, and a run
+// with no tickets blanked it. Bodies from before the markers existed start
+// with a bare "# Tickets" list; that block is replaced the same way.
+func mergeBody(existing, section string) string {
+	// Bodies edited on github.com come back with CRLF line endings.
+	body := strings.ReplaceAll(existing, "\r\n", "\n")
+
+	// Blank-line-separated, skipping empty parts, so removing a section or
+	// adding one to an empty body leaves no stray gaps.
+	join := func(parts ...string) string {
+		var kept []string
+		for _, p := range parts {
+			if p = strings.TrimSpace(p); p != "" {
+				kept = append(kept, p)
+			}
+		}
+		return strings.Join(kept, "\n\n")
+	}
+
+	// The section is replaced where it stands, so the body's layout holds.
+	if i := strings.Index(body, bodyStart); i >= 0 {
+		if j := strings.Index(body[i:], bodyEnd); j >= 0 {
+			return join(body[:i], section, body[i+j+len(bodyEnd):])
+		}
+	}
+	if strings.HasPrefix(body, "# Tickets\n") {
+		lines := strings.Split(body, "\n")
+		n := 1
+		for n < len(lines) && (lines[n] == "" || strings.HasPrefix(lines[n], "### - Closes ")) {
+			n++
+		}
+		return join(section, strings.Join(lines[n:], "\n"))
+	}
+	// A body prflow has never written to: the tickets go after what is there.
+	return join(body, section)
 }
 
 // MergePR merges a PR using regular merge (not squash)
@@ -691,8 +745,8 @@ func CreateOrUpdatePR(repoPath, headBranch, baseBranch, title string, tickets []
 	}
 
 	if existing != nil {
-		// Update existing PR
-		pr, err := UpdatePR(repoPath, existing.Number, title, body)
+		// Update existing PR, keeping what people wrote on it.
+		pr, err := UpdatePR(repoPath, existing.Number, title, mergeBody(existing.Body, body))
 		if err != nil {
 			return nil, false, err
 		}
