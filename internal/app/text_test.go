@@ -52,28 +52,6 @@ func TestRevealRunes(t *testing.T) {
 	}
 }
 
-// The main menu describes what the tool will do, so it has to describe the
-// user's actual config. It previously asserted one project's key as a
-// literal.
-func TestTicketExample(t *testing.T) {
-	tests := map[string]string{
-		"ACME-[0-9]+": "ACME-123",
-		`PROJ-\d+`:    "PROJ-123",
-		"JIRA-[0-9]+": "JIRA-123",
-		"":            "disabled",
-		// The shipped default, which names no particular project.
-		"[A-Z][A-Z0-9]+-[0-9]+": "ABC-123",
-		// Anything still regex-shaped is shown verbatim rather than turned into
-		// a confidently wrong example.
-		"(FOO|BAR)-[0-9]+": "(FOO|BAR)-[0-9]+",
-	}
-	for pattern, want := range tests {
-		if got := ticketExample(pattern); got != want {
-			t.Errorf("ticketExample(%q) = %q, want %q", pattern, got, want)
-		}
-	}
-}
-
 func TestTruncateString(t *testing.T) {
 	tests := []struct {
 		in     string

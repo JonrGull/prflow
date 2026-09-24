@@ -1,13 +1,19 @@
 package app
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/JonrGull/prflow/internal/config"
 	"github.com/JonrGull/prflow/internal/github"
 	"github.com/JonrGull/prflow/internal/models"
+	"github.com/JonrGull/prflow/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // The dry-run fixture has known numbers, so it checks buildHomeData's sums.
@@ -34,10 +40,10 @@ func TestBuildHomeDataFromTheFixture(t *testing.T) {
 
 	var got []string
 	for _, a := range d.Attention {
-		got = append(got, a.Repo+": "+a.Detail)
+		got = append(got, fmt.Sprintf("%s: #%d %s", a.Repo, a.PR, a.Detail))
 	}
-	want := []string{"web-app: CI failing on #212", "billing: merge conflict on #41",
-		"api-service: changes requested on #90", "worker: 14 commits, no PR"}
+	want := []string{"web-app: #212 CI failing", "billing: #41 merge conflict",
+		"api-service: #90 changes requested", "worker: #0 14 commits, no PR"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("attention =\n%v\nwant\n%v", got, want)
 	}
@@ -81,5 +87,88 @@ func TestOlderHomeFetchIsIgnored(t *testing.T) {
 	m = send(t, m, homeFetchedResult{gen: 2, data: homeData{Repos: 3}, at: time.Now()})
 	if m.home.data.Repos != 3 || m.home.loading || !m.home.loaded {
 		t.Errorf("the current fetch's result was not applied: %+v", m.home)
+	}
+}
+
+// Arriving home refreshes data older than homeStaleAfter, and only that.
+func TestArrivingHomeRefreshesStaleData(t *testing.T) {
+	for _, tc := range []struct {
+		age  time.Duration
+		want bool
+	}{{time.Minute, false}, {homeStaleAfter + time.Minute, true}} {
+		m := staleModel(ScreenSettings)
+		m.home = homeState{loaded: true, fetchedAt: timeNow().Add(-tc.age)}
+		m = send(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+		if m.screen != ScreenMainMenu {
+			t.Fatalf("esc from settings went to %v", m.screen)
+		}
+		if m.home.loading != tc.want {
+			t.Errorf("data %v old: refreshing = %v, want %v", tc.age, m.home.loading, tc.want)
+		}
+	}
+}
+
+// A settings change can change the chain and the repos, so the fetch still
+// out describes the old settings: its result is dropped, and the next arrival
+// home fetches again.
+func TestSettingsChangeInvalidatesTheDashboard(t *testing.T) {
+	m := staleModel(ScreenSettings)
+	m.home = homeState{loaded: true, fetchedAt: timeNow()}
+	_ = m.startHomeFetch()
+	gen := m.home.gen
+	_ = m.applySettingsChange()
+
+	m = send(t, m, homeFetchedResult{gen: gen, data: homeData{Repos: 99}, at: timeNow()})
+	if m.home.data.Repos == 99 {
+		t.Error("a fetch made under the old settings was applied")
+	}
+	if !m.homeStale() {
+		t.Error("the dashboard is not due a refresh after a settings change")
+	}
+}
+
+// Home is a tab: ] from the last tab goes home, and [ from home goes back to
+// it. The Start card highlights the tab you came from.
+func TestHomeIsATab(t *testing.T) {
+	m := staleModel(ScreenActionsOverview)
+	m.activeTab = len(ui.TabNames) - 1
+	m = send(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
+	if m.screen != ScreenMainMenu || m.menuIndex != m.activeTab {
+		t.Fatalf("] from Actions: screen %v, menu index %d", m.screen, m.menuIndex)
+	}
+	m = send(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
+	if m.screen == ScreenMainMenu || m.activeTab != len(ui.TabNames)-1 {
+		t.Errorf("[ from home: screen %v, tab %d", m.screen, m.activeTab)
+	}
+
+	single := staleModel(ScreenPrTypeSelect)
+	single = send(t, single, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
+	if single.screen != ScreenMainMenu {
+		t.Errorf("[ from Single went to %v, not home", single.screen)
+	}
+}
+
+// The pipeline is drawn from whatever chain is configured. A loop, a repeated
+// step and a single step must still render inside the frame.
+func TestPipelineDrawsOddChains(t *testing.T) {
+	chains := [][]config.FlowEntry{
+		{{Head: "dev", Base: "staging"}, {Head: "staging", Base: "dev"}},
+		{{Head: "dev", Base: "staging"}, {Head: "dev", Base: "staging"}},
+		{{Head: "dev", Base: models.DefaultBranchToken}},
+		{{Head: "a-very-long-integration-branch", Base: "b"}, {Head: "b", Base: "c"}, {Head: "c", Base: "d"}, {Head: "d", Base: "e"}},
+	}
+	for _, flows := range chains {
+		m := staleModel(ScreenMainMenu)
+		m.config.Flows = flows
+		m.home = homeState{data: dryRunHomeData(m.flows()), loaded: true, fetchedAt: timeNow()}
+		for _, w := range []int{60, 80, 120, 160} {
+			m.width, m.height = w, 40
+			for i, line := range strings.Split(m.View(), "\n") {
+				if got := lipgloss.Width(line); got > w {
+					t.Errorf("%v at width %d: line %d is %d wide", flows, w, i+1, got)
+					break
+				}
+			}
+		}
 	}
 }

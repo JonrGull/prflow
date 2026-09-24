@@ -61,6 +61,9 @@ func TestScreenRenders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := tc.model
 			m.width, m.height = 120, 40
+			if size, ok := goldenSizes[tc.name]; ok {
+				m.width, m.height = size[0], size[1]
+			}
 			m.screen = tc.screen
 
 			var b strings.Builder
@@ -86,6 +89,7 @@ func TestScreenRenders(t *testing.T) {
 // actually stands — screens that have been made to fit, and are held to it.
 // Moving a screen into this list is the way to pay the debt down one at a time.
 var heightAwareScreens = map[Screen]bool{
+	ScreenMainMenu:       true,
 	ScreenSettings:       true,
 	ScreenListEdit:       true,
 	ScreenSessionHistory: true,
@@ -133,7 +137,9 @@ func TestScreensFitTheirWidth(t *testing.T) {
 func TestScreensFitTheirHeight(t *testing.T) {
 	seen := map[Screen]bool{}
 	for _, tc := range screenCases() {
-		if !heightAwareScreens[tc.screen] {
+		// The help overlay replaces the screen with its own renderer, which is
+		// not one of the height-aware ones.
+		if !heightAwareScreens[tc.screen] || tc.model.showHelp {
 			continue
 		}
 		seen[tc.screen] = true
@@ -216,6 +222,15 @@ type screenCase struct {
 	name   string
 	screen Screen
 	model  Model
+}
+
+// goldenSizes records a few goldens at a terminal size other than 120x40. The
+// width and height tests sweep their own sizes whatever this says.
+var goldenSizes = map[string][2]int{
+	// Below twoColumnMinWidth the dashboard stacks; short terminals drop cards.
+	"main_menu_narrow":       {80, 40},
+	"main_menu_short":        {120, 30},
+	"main_menu_narrow_short": {80, 24},
 }
 
 // screenCases covers every screen, plus the empty-state variants separately.
@@ -381,25 +396,53 @@ func screenCases() []screenCase {
 	filteredRepos.batch.filter = "a"
 	cases = append(cases, screenCase{"batch_repo_select_filtered", ScreenBatchRepoSelect, filteredRepos})
 
-	// Menu index 1 is Batch Mode, whose info panel names the scan directory —
-	// the line that used to be a hardcoded one company's repo directory regardless
-	// of what the user had configured.
-	batchMenu := populatedModel()
-	batchMenu.menuIndex = 1
-	cases = append(cases, screenCase{"main_menu_batch_info", ScreenMainMenu, batchMenu})
-
-	// Menu index 2 draws the release chain. Nothing rendered that panel before,
-	// which is how it went on showing a hand-drawn dev/staging/main ladder
-	// regardless of the configured steps.
-	releaseMenu := populatedModel()
-	releaseMenu.menuIndex = 2
-	cases = append(cases, screenCase{"main_menu_release_info", ScreenMainMenu, releaseMenu})
-
-	releaseMenu3 := threeStep
-	releaseMenu3.menuIndex = 2
+	// The dashboard's states. Each card has its own waiting, failed and empty
+	// branch, so each is recorded.
+	loading := populatedModel()
+	loading.home = homeState{loading: true}
+	refreshing := populatedModel()
+	refreshing.home.loading = true
+	failed := populatedModel()
+	failed.home = homeState{err: fmt.Errorf("gh: could not resolve host api.github.com"), fetchedAt: ago(time.Minute)}
+	partial := populatedModel()
+	partial.home.data.Problems = []string{"open PRs: gh: HTTP 502", "Actions: 2 repo(s) could not be read"}
+	partial.home.data.Runs = nil
+	quiet := populatedModel()
+	quiet.home.data = buildHomeData(quiet.flows(), nil, nil, nil, nil, fixedNow)
+	quiet.home.data.Repos = 6
+	for i := range quiet.home.data.Steps {
+		quiet.home.data.Steps[i].Compared = 6
+	}
+	selected := populatedModel()
+	selected.menuIndex = 3
 	cases = append(cases,
-		screenCase{"main_menu_release_info_three_steps", ScreenMainMenu, releaseMenu3},
-		screenCase{"pull_branch_select_three_steps", ScreenPullBranchSelect, releaseMenu3},
+		screenCase{"main_menu_loading", ScreenMainMenu, loading},
+		screenCase{"main_menu_refreshing", ScreenMainMenu, refreshing},
+		screenCase{"main_menu_failed", ScreenMainMenu, failed},
+		screenCase{"main_menu_partial", ScreenMainMenu, partial},
+		screenCase{"main_menu_all_quiet", ScreenMainMenu, quiet},
+		screenCase{"main_menu_selected", ScreenMainMenu, selected},
+		screenCase{"main_menu_narrow", ScreenMainMenu, populatedModel()},
+		screenCase{"main_menu_short", ScreenMainMenu, populatedModel()},
+		screenCase{"main_menu_narrow_short", ScreenMainMenu, populatedModel()},
+	)
+
+	// The pipeline is drawn from the configured chain, however long, and
+	// listed instead when the steps do not join end to end.
+	homeThree := threeStep
+	homeThree.home.data = dryRunHomeData(flows3)
+	pullThree := threeStep
+	pullThree.menuIndex = 2
+	unchained := populatedModel()
+	unchained.config.Flows = []config.FlowEntry{
+		{Head: "dev", Base: "staging"},
+		{Head: "hotfix", Base: models.DefaultBranchToken},
+	}
+	unchained.home.data = dryRunHomeData(unchained.flows())
+	cases = append(cases,
+		screenCase{"main_menu_three_steps", ScreenMainMenu, homeThree},
+		screenCase{"main_menu_unchained_steps", ScreenMainMenu, unchained},
+		screenCase{"pull_branch_select_three_steps", ScreenPullBranchSelect, pullThree},
 	)
 
 	// First-run setup has three distinct states, and the two failure ones are
@@ -537,6 +580,8 @@ func populatedModel() Model {
 		loadingMessage:   "Fetching commits...",
 		confirmSelection: 0,
 		typewriterPos:    100,
+
+		home: homeState{data: dryRunHomeData(flows), loaded: true, fetchedAt: ago(2 * time.Minute)},
 	}
 
 	// Batch

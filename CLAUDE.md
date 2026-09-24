@@ -30,12 +30,13 @@ go test ./internal/app -update               # Re-record screen goldens after an
   - `app.go` - The Model, `New`, and the animation tick
   - `update.go` - The message loop: global keys, then dispatch to the screen
   - `view.go` - The frame every screen draws inside, plus shared render helpers
-  - Screens: `mainmenu.go`, `single.go` (release step → review → title → create),
+  - Screens: `mainmenu.go` (the Home dashboard), `single.go` (release step → review → title → create),
     `batch.go`, `merge.go` (open PRs + merging), `allprs.go`, `actions.go`,
     `pull.go`, `qatag.go`, `settings.go`, `listedit.go`, `firstrun.go`,
     `history.go`, `selfupdate.go`, `errorscreen.go`
   - `screens.go` - Screen enum (29 screens) and AppMode (Single/Batch)
   - `keys.go` - Per-screen key hints as data (footer + `?` overlay)
+  - `home.go` - The dashboard's data: one fetch, three requests, a pure `buildHomeData`
   - `prstatus.go` - The derived review/CI/preview rules for the all-PRs table
   - `flows.go` - The configured release steps, and the colour palettes every
     screen indexes them by
@@ -54,7 +55,7 @@ go test ./internal/app -update               # Re-record screen goldens after an
 ## Screen Flow
 
 ```
-MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confirmation → Creating → Complete
+MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → TitleInput → Confirmation → Creating → Complete
     ↓
 (Batch) → BatchRepoSelect → BatchConfirmation → BatchProcessing → BatchSummary
     ↓
@@ -107,13 +108,36 @@ MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confir
 
 **Every settings write goes through `applySettingsChange`:** it saves, re-runs `Validate()` and calls `invalidateRepoCache()`. Editing a glob is exactly when that cache is stale, and the cache keys on these values, so skipping it shows up as a repo list that ignores the edit.
 
+**The Home dashboard (`home.go` data, `mainmenu.go` cards):** the main menu is
+a dashboard whose Start card is the old menu. `fetchHomeCmd` makes three
+requests for every repo at once: the open-PR search, one GraphQL branch
+comparison (`github.CompareBranches`, `Ref.compare` → `aheadCount`) and each
+repo's recent Actions runs. `buildHomeData` turns them into cards and is pure,
+so tests and `--dry-run` drive it with fixtures. Its result is deliberately
+*not* a `flowResult`: it only replaces the cache, and `home.gen` drops a fetch
+that a newer one replaced. It loads on launch (not first run), on `r`, and on
+arriving home when older than `homeStaleAfter`; `applySettingsChange` bumps
+the gen and zeroes `fetchedAt`, so settings edits refetch. A source that fails
+goes into `Problems` and shows on its card instead of an empty list. Home is
+also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` cycle.
+- **Cards** are `ui.Card`: shaded, borderless and exactly the size asked.
+  lipgloss ends every styled span with a reset, which would punch a hole in the
+  shading, so `ui.OnBackground` puts the panel colour back after each one.
+  Below 6 rows a card drops the blank row under its title; `ui.CardRows` says
+  how many lines fit, and each card cuts its own spacing before its content.
+- **Layout** (`renderHome`): two columns from `twoColumnMinWidth`, else
+  stacked. When a layout is too tall it tries a tighter one, then drops cards
+  (pipeline and the middle row go, Start never does). It is handed
+  `unboxedHeight`, the room a full-layout screen really has, and it is in
+  `heightAwareScreens`, so a layout that overflows fails the height test.
+
 **Animation tick:** the 80ms tick chain stops when `needsAnimation()` is false and `Update` restarts it when state changes. If you add something that animates on an otherwise-static screen, add it to `needsAnimation()` or it will appear frozen.
 
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (61 cases in
-`internal/app/testdata/screens/`), regressions for bugs that actually occurred, and the
+golden renders of every screen plus its interesting states (72 cases in
+`internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a
 screen you didn't touch is the signal the goldens exist to give. `TestMain` pins the

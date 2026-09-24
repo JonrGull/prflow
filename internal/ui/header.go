@@ -23,9 +23,13 @@ var tabShortNames = []string{"Single", "Batch", "Release", "All PRs", "Actions"}
 // TabColors are each tab's accent, used to fill the active one.
 var TabColors = []lipgloss.TerminalColor{ColorCyan, ColorMagenta, ColorYellow, ColorBlue, ColorOrange}
 
+// HomeTab is the ActiveTab of the dashboard, drawn as a "Home" tab ahead of
+// the others.
+const HomeTab = -1
+
 // HeaderInfo is what the header shows around the tabs.
 type HeaderInfo struct {
-	ActiveTab int    // -1 highlights none: the main menu is not a tab
+	ActiveTab int    // HomeTab (-1) for the dashboard, else an index into TabNames
 	DryRun    bool   // shows the DRY RUN badge
 	Meta      string // e.g. "gh: jon · v1.0.9"; the first thing dropped
 }
@@ -52,13 +56,22 @@ func RenderHeader(info HeaderInfo, width int) string {
 		return strings.Join(kept, "  ")
 	}
 	long, short := renderTabs(TabNames, info.ActiveTab), renderTabs(tabShortNames, info.ActiveTab)
+	home := lipgloss.NewStyle().Padding(0, 1).Foreground(ColorDarkGray).Render("Home")
+	if info.ActiveTab == HomeTab {
+		home = lipgloss.NewStyle().Padding(0, 1).Background(ColorLightGreen).Foreground(ColorOnAccent).Bold(true).Render("Home")
+	}
+	// Home goes last among the tabs, just before the badge would.
+	bare := short
+	long, short = home+long, home+short
 
 	candidates := [][2]string{
 		{join(brand, long), join(badge, meta)},
 		{join(brand, long), badge},
 		{join(brand, short), badge},
 		{short, badge},
+		{bare, badge},
 		{short, ""},
+		{bare, ""},
 	}
 	line := ""
 	for _, c := range candidates {

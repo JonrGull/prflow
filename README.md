@@ -59,17 +59,22 @@ The keys that work almost everywhere:
 | `Space` | Toggle selection / Pin run (actions) |
 | `/` | Enter filter mode (actions) |
 | `o` | Open in browser |
-| `[` / `]` | Previous/next tab |
+| `[` / `]` | Previous/next tab (Home is the first) |
 | `F` | Toggle fullscreen (hides the header) |
 | `Esc` | Go back |
 | `q` | Quit — except on the error screen, where it goes back |
 | `Ctrl+C` | Quit from anywhere |
 
-Main menu only: `a` Actions, `p` Pull all, `o` Settings, `c` open config
-folder, `u` check for updates, `h` session history.
+Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
+`p` Pull all, `o` Settings, `c` open config folder, `u` check for updates,
+`h` session history.
 
 ## Features
 
+- **Dashboard**: Home shows the release at a glance — commits waiting at each
+  step of the chain, open release PRs and which are ready to merge, what needs
+  attention (failing CI, conflicts, changes requested, commits with no PR), and
+  recent Actions runs. It loads in the background and refreshes with `r`
 - **Single PR**: Create a release PR for one repo, for any step of your
   configured release chain
 - **Batch PR**: Create release PRs across multiple repos at once
@@ -88,7 +93,7 @@ folder, `u` check for updates, `h` session history.
 
 ## Configuration
 
-Everything below can be edited in the app: press `o` from the main menu for
+Everything below can be edited in the app: press `o` from Home for
 settings. The glob, repo and column lists open a row editor (`a` adds, `Enter`
 edits a cell, `d` twice deletes), which shows the group names already in use so
 a column entry can't drift from the globs that produce it. Changes are saved as

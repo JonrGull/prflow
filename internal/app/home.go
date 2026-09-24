@@ -72,6 +72,7 @@ const (
 type attentionItem struct {
 	Kind   attentionKind
 	Repo   string
+	PR     uint64 // 0 when there is no PR
 	Detail string
 	Step   string
 }
@@ -136,9 +137,12 @@ func fetchHomeCmd(cfg *config.Config, flows []models.Flow, dryRun bool, gen int)
 			return homeFetchedResult{gen: gen, err: err, at: timeNow()}
 		}
 		var withNWO []repoNWO
-		for _, r := range repos {
-			if nwo, err := github.GetRepoNWO(r.Path); err == nil {
-				withNWO = append(withNWO, repoNWO{Repo: r, NWO: nwo})
+		for _, r := range parallelMap(repos, func(r models.RepoInfo) repoNWO {
+			nwo, _ := github.GetRepoNWO(r.Path) // "" for a repo not on GitHub
+			return repoNWO{Repo: r, NWO: nwo}
+		}) {
+			if r.NWO != "" {
+				withNWO = append(withNWO, r)
 			}
 		}
 		nwos := make([]string, len(withNWO))
@@ -232,7 +236,7 @@ func buildHomeData(flows []models.Flow, repos []repoNWO, prs map[string][]models
 			case "failure":
 				step.Failing++
 				d.Attention = append(d.Attention, attentionItem{Kind: attnCIFailing, Repo: r.Repo.ShortName(),
-					Detail: fmt.Sprintf("CI failing on #%d", pr.Number), Step: f.Display(r.Repo.MainBranch)})
+					PR: pr.Number, Detail: "CI failing", Step: f.Display(r.Repo.MainBranch)})
 			case "pending":
 				step.Pending++
 			default:
@@ -240,11 +244,11 @@ func buildHomeData(flows []models.Flow, repos []repoNWO, prs map[string][]models
 			}
 			if pr.Mergeable == "CONFLICTING" {
 				d.Attention = append(d.Attention, attentionItem{Kind: attnConflict, Repo: r.Repo.ShortName(),
-					Detail: fmt.Sprintf("merge conflict on #%d", pr.Number), Step: f.Display(r.Repo.MainBranch)})
+					PR: pr.Number, Detail: "merge conflict", Step: f.Display(r.Repo.MainBranch)})
 			}
 			if changes {
 				d.Attention = append(d.Attention, attentionItem{Kind: attnChangesRequested, Repo: r.Repo.ShortName(),
-					Detail: fmt.Sprintf("changes requested on #%d", pr.Number), Step: f.Display(r.Repo.MainBranch)})
+					PR: pr.Number, Detail: "changes requested", Step: f.Display(r.Repo.MainBranch)})
 			}
 			if (ci == "success" || ci == "none") && pr.Mergeable == "MERGEABLE" && !changes && !pr.IsDraft {
 				step.Ready = append(step.Ready, r.Repo.ShortName())

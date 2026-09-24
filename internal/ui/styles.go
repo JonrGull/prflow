@@ -25,6 +25,7 @@ var (
 	ColorBorder    = lipgloss.AdaptiveColor{Dark: "#3B4261", Light: "#C4C8DA"} // frames and rules
 	ColorSelection = lipgloss.AdaptiveColor{Dark: "#283457", Light: "#D5DDF5"} // highlighted row
 	ColorOnAccent  = lipgloss.AdaptiveColor{Dark: "#16161E", Light: "#FFFFFF"} // text on an accent fill
+	ColorPanel     = lipgloss.AdaptiveColor{Dark: "#1F2335", Light: "#EDEFF6"} // shaded dashboard cards
 )
 
 // Preset styles for the combinations used repeatedly across the views.

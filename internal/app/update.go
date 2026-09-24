@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/JonrGull/prflow/internal/ui"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -87,6 +89,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// arriving here is where the flow's outstanding requests stop mattering.
 	if !wasMenu && updated.screen == ScreenMainMenu {
 		updated.newEpoch()
+		// Data older than homeStaleAfter is refreshed on the way in.
+		if updated.homeStale() {
+			cmd = tea.Batch(cmd, updated.startHomeFetch())
+		}
 	}
 	cmd = tagEpoch(updated.epoch, cmd)
 
@@ -317,7 +323,16 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 	// Compared against the displayed tab, not the stored one: on the main menu
 	// nothing is selected, so navigating to tab 0 is a real move rather than a
 	// no-op against a value left over from last time.
-	if tab < 0 || tab > 4 || tab == m.activeTabForDisplay() {
+	if tab < ui.HomeTab || tab > 4 || tab == m.activeTabForDisplay() {
+		return m, nil
+	}
+	if tab == ui.HomeTab {
+		// Like the other tabs, this keeps each screen's cached data. Update
+		// starts a new epoch on arrival. The Start card highlights the tab
+		// just left.
+		m.screen = ScreenMainMenu
+		m.mode = nil
+		m.menuIndex = m.activeTab
 		return m, nil
 	}
 	m.activeTab = tab
@@ -400,21 +415,22 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Tab switching with [ and ] (blocked during text input/filter, and while
 	// a write is running).
 	//
-	// Stepping from activeTabForDisplay rather than activeTab is what makes the
-	// main menu behave like the "no tab selected" it now looks like: from there
-	// ] enters Single instead of skipping past it to Batch.
+	// Home is the tab before Single, so the cycle runs Home, Single … Actions
+	// and back to Home. Stepping from activeTabForDisplay rather than activeTab
+	// is what makes ] on the dashboard enter Single instead of skipping past it.
 	if (msg.String() == "[" || msg.String() == "]") && !m.isTextInputActive() && !isBusy(m.screen) {
+		last := len(ui.TabNames) - 1
 		current := m.activeTabForDisplay()
 		if msg.String() == "[" {
 			tab := current - 1
-			if tab < 0 {
-				tab = 4
+			if tab < ui.HomeTab {
+				tab = last
 			}
 			return m.navigateToTab(tab)
 		}
 		tab := current + 1
-		if tab > 4 {
-			tab = 0
+		if tab > last {
+			tab = ui.HomeTab
 		}
 		return m.navigateToTab(tab)
 	}

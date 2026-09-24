@@ -39,11 +39,18 @@ const minTerminalHeight = 19
 // the height it actually takes cannot drift apart.
 const outerBoxPadding = 1
 
+// unboxedHeight is the room a full-layout screen really has: availableHeight
+// is charged for the outer box's border and padding rows, which such a screen
+// does not draw.
+func unboxedHeight(availableHeight int) int {
+	return availableHeight + 2 + 2*outerBoxPadding
+}
+
 // isFullLayoutScreen reports whether a screen draws its own frame rather than
 // sitting inside the outer box.
 func isFullLayoutScreen(s Screen) bool {
 	switch s {
-	case ScreenLoading, ScreenBatchRepoSelect, ScreenViewOpenPrs, ScreenViewAllPrs,
+	case ScreenMainMenu, ScreenLoading, ScreenBatchRepoSelect, ScreenViewOpenPrs, ScreenViewAllPrs,
 		ScreenBatchSummary, ScreenMergeSummary, ScreenCommitReview,
 		ScreenPullProgress, ScreenPullSummary, ScreenActionsOverview:
 		return true
@@ -271,11 +278,9 @@ const menuRowWidth = 46
 // numberedMenuRow renders one two-line row of a numbered selection menu: arrow,
 // number and title, with an indented description beneath.
 //
-// The PR-type and pull-branch screens each wrote this out longhand. Note this is
-// deliberately *not* ui.MenuRow: that renders an unstyled icon with different
-// spacing and a single title colour, whereas these screens style the number and
-// need a multi-coloured title — the PR-type screen colours the head and base
-// branches differently, which is what makes it readable at a glance.
+// The PR-type and pull-branch screens each wrote this out longhand. The title
+// can be multi-coloured: the PR-type screen colours the head and base branches
+// differently, which is what makes it readable at a glance.
 //
 // title arrives pre-rendered for exactly that reason, and must already carry the
 // selected background when selected is true.
@@ -341,7 +346,7 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 
 	switch m.screen {
 	case ScreenMainMenu:
-		return m.renderMainMenu()
+		return m.renderHome(unboxedHeight(availableHeight))
 	case ScreenPrTypeSelect:
 		return m.renderPrTypeSelect()
 	case ScreenLoading:

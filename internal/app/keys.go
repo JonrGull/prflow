@@ -46,9 +46,10 @@ var (
 // the case for the progress screens, which take no input.
 var staticKeyHints = map[Screen][]keyHint{
 	ScreenMainMenu: {
-		{"1-6", "Select", ui.ColorYellow},
+		{"1-5", "Select", ui.ColorYellow},
 		hintNavigate,
 		{"Enter", "Select", ui.ColorGreen},
+		{"r", "Refresh", ui.ColorGreen},
 		{"a", "Actions", ui.ColorOrange},
 		{"p", "Pull", ui.ColorGreen},
 		{"o", "Settings", ui.ColorCyan},

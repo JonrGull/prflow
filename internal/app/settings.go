@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/JonrGull/prflow/internal/config"
 	"github.com/JonrGull/prflow/internal/ui"
@@ -279,6 +280,11 @@ func (m *Model) applySettingsChange() error {
 	err := m.saveConfig()
 	m.configDiagnostics = m.config.Validate()
 	invalidateRepoCache()
+	// The dashboard describes the old settings: drop any fetch still out, and
+	// refetch on the way home.
+	m.home.gen++
+	m.home.loading = false
+	m.home.fetchedAt = time.Time{}
 	return err
 }
 

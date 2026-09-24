@@ -165,7 +165,7 @@ func (m Model) mainBranch() string {
 
 // New creates a new application model
 func New(cfg *config.Config, dryRun, testUpdate bool, version string) Model {
-	return Model{
+	m := Model{
 		config:      cfg,
 		dryRun:      dryRun,
 		testUpdate:  testUpdate,
@@ -180,6 +180,12 @@ func New(cfg *config.Config, dryRun, testUpdate bool, version string) Model {
 		configDiagnostics: cfg.Validate(),
 		firstRun:          firstRunState{value: cfg.Paths.ReposDir},
 	}
+	// The dashboard loads in the background from launch; Init sends the
+	// request. First run waits until setup has found some repos.
+	if m.screen == ScreenMainMenu {
+		m.home = homeState{loading: true, gen: 1}
+	}
+	return m
 }
 
 // startScreen sends a user with no config file to setup rather than to a main
@@ -203,6 +209,9 @@ func (m Model) Init() tea.Cmd {
 		if m.config.ShouldCheckForUpdate() {
 			cmds = append(cmds, checkUpdateCmd(m.version, m.config.Update.Repo))
 		}
+	}
+	if m.home.loading {
+		cmds = append(cmds, fetchHomeCmd(m.config, m.flows(), m.dryRun, m.home.gen))
 	}
 	// Test update flag shows fake update prompt
 	if m.testUpdate {
@@ -245,6 +254,10 @@ func (m Model) needsAnimation() bool {
 	case ScreenLoading, ScreenCreating, ScreenBatchProcessing,
 		ScreenMerging, ScreenUpdating, ScreenPullProgress:
 		return true
+
+	// The dashboard's cards show a spinner while it fetches.
+	case ScreenMainMenu:
+		return m.home.loading
 
 	// Success screens animate a typewriter reveal, then settle.
 	case ScreenComplete, ScreenBatchSummary:
