@@ -23,7 +23,8 @@ func validFlows() []FlowEntry {
 
 func TestValidate(t *testing.T) {
 	base := t.TempDir()
-	mustMkdir(t, filepath.Join(base, "frontend", "web"))
+	// A repo, as discovery sees one: a folder with a .git in it.
+	mustMkdir(t, filepath.Join(base, "frontend", "web", ".git"))
 
 	t.Run("clean config is quiet", func(t *testing.T) {
 		c := &Config{
@@ -542,5 +543,75 @@ func TestExpandTildeHandlesABareTilde(t *testing.T) {
 		if got := ExpandTilde(in); got != want {
 			t.Errorf("ExpandTilde(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func diagFields(cfg *Config) map[string]string {
+	out := map[string]string{}
+	for _, d := range cfg.Validate() {
+		out[d.Field] += d.Message + "; "
+	}
+	return out
+}
+
+func loadBody(t *testing.T, body string) *Config {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	if err := os.WriteFile(filepath.Join(dir, configName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
+}
+
+// A mistyped key was dropped without a word, so the setting silently fell
+// back to its default.
+func TestUnknownKeysAreReported(t *testing.T) {
+	cfg := loadBody(t, "[paths]\nrepo_dir = '/somewhere'\n\n[[glob]]\npattern = 'x/*'\ngroup = 'X'\n")
+	fields := diagFields(cfg)
+	if !strings.Contains(fields["paths.repo_dir"], "not a prflow setting") {
+		t.Errorf("repo_dir typo not reported; diagnostics: %v", fields)
+	}
+	found := false
+	for f := range fields {
+		found = found || strings.HasPrefix(f, "glob")
+	}
+	if !found {
+		t.Errorf("[[glob]] typo not reported; diagnostics: %v", fields)
+	}
+}
+
+// Keys that older configs still carry are known, and migrated.
+func TestLegacyKeysAreNotUnknown(t *testing.T) {
+	cfg := loadBody(t, "[paths]\nfrontend_glob = 'fe/*'\n\n[[repos]]\npath = '/x'\ncategory = 'Backend'\n\n[update]\nlast_check = 2026-01-02T03:04:05Z\nskipped_version = 'v1'\n")
+	for f, msg := range diagFields(cfg) {
+		if strings.Contains(msg, "not a prflow setting") {
+			t.Errorf("legacy key %s reported as unknown", f)
+		}
+	}
+}
+
+// A glob matching folders that are not repos, or a [[repos]] path that is not
+// one, found nothing and said nothing.
+func TestNonRepoPathsAreReported(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, "frontend", "web"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	cfg.Paths.ReposDir = base
+	cfg.Globs = []GlobEntry{{Pattern: "frontend", Group: "Frontend"}}
+	cfg.Repos = []RepoEntry{{Path: filepath.Join(base, "frontend", "web"), Group: "Frontend"}}
+	fields := diagFields(cfg)
+	if !strings.Contains(fields["globs"], "no git repository") {
+		t.Errorf("glob of non-repos not reported: %v", fields)
+	}
+	if !strings.Contains(fields["repos"], "not a git repository") {
+		t.Errorf("non-repo [[repos]] path not reported: %v", fields)
 	}
 }

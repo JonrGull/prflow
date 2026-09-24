@@ -86,6 +86,17 @@ func (c *Config) Validate() []Diagnostic {
 	diags = append(diags, c.validateExplicitRepos()...)
 	diags = append(diags, c.validateColumns()...)
 
+	// Keys the config does not know were dropped without a word, so a typo
+	// like repo_dir or [[glob]] quietly fell back to the default.
+	for _, key := range c.unknownKeys {
+		diags = append(diags, Diagnostic{
+			Severity: SeverityWarning,
+			Field:    key,
+			Message:  "is not a prflow setting, so it is ignored",
+			Fix:      "check the spelling; a save from the settings screen drops it",
+		})
+	}
+
 	if c.Tickets.Pattern != "" && c.ticketRegex == nil {
 		diags = append(diags, Diagnostic{
 			Severity: SeverityWarning,
@@ -145,6 +156,15 @@ func (c *Config) validateGlobs(base string) []Diagnostic {
 				Field:    "globs",
 				Message:  fmt.Sprintf("pattern %q matches nothing under %s", g.Pattern, base),
 			})
+		} else if !anyRepo(matches) {
+			// Matching folders that are not repos finds nothing too, and used
+			// to pass without a word.
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Field:    "globs",
+				Message:  fmt.Sprintf("pattern %q matches %d folder(s) under %s, but no git repository", g.Pattern, len(matches), base),
+				Fix:      "point it at the repositories themselves, e.g. add /* to the pattern",
+			})
 		}
 	}
 
@@ -159,6 +179,12 @@ func (c *Config) validateExplicitRepos() []Diagnostic {
 				Severity: SeverityWarning,
 				Field:    "repos",
 				Message:  fmt.Sprintf("%q does not exist", r.Path),
+			})
+		} else if !isRepo(r.Path) {
+			diags = append(diags, Diagnostic{
+				Severity: SeverityWarning,
+				Field:    "repos",
+				Message:  fmt.Sprintf("%q is not a git repository, so it is skipped", r.Path),
 			})
 		}
 	}
@@ -324,4 +350,19 @@ func (c *Config) validateFlows() []Diagnostic {
 	}
 
 	return diags
+}
+
+// isRepo reports whether path is a git working tree, as discovery needs.
+func isRepo(path string) bool {
+	_, err := os.Stat(filepath.Join(path, ".git"))
+	return err == nil
+}
+
+func anyRepo(paths []string) bool {
+	for _, p := range paths {
+		if isRepo(p) {
+			return true
+		}
+	}
+	return false
 }

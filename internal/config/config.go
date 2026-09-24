@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -53,6 +54,7 @@ type Config struct {
 
 	// Compiled regex from Tickets.Pattern (not serialized)
 	ticketRegex *regexp.Regexp
+	unknownKeys []string // keys in the file the struct does not know, for Validate
 
 	// state holds machine-written values, persisted separately so that
 	// routine bookkeeping never rewrites the user's hand-edited TOML.
@@ -181,6 +183,26 @@ func readConfigFile() (data []byte, fromLegacy bool, err error) {
 	return nil, false, err
 }
 
+// unknownKeys lists the keys in data that Config has no field for. The
+// ordinary decode ignores them.
+func unknownKeys(data []byte) []string {
+	var missing *toml.StrictMissingError
+	err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&Config{})
+	if !errors.As(err, &missing) {
+		return nil
+	}
+	seen := map[string]bool{}
+	var keys []string
+	for _, e := range missing.Errors {
+		key := strings.Join(e.Key(), ".")
+		if !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
 // hasKey reports whether parsed TOML sets the key at path, even to an empty
 // value.
 func hasKey(raw map[string]any, path ...string) bool {
@@ -239,6 +261,7 @@ func Load() (*Config, error) {
 	// an edit made in the app is always present in the file.
 	var raw map[string]any
 	_ = toml.Unmarshal(data, &raw) // the same data just parsed above
+	cfg.unknownKeys = unknownKeys(data)
 	if !hasKey(raw, "paths", "repos_dir") {
 		cfg.Paths.ReposDir = defaults.Paths.ReposDir
 	}
