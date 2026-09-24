@@ -209,3 +209,21 @@ func TestAuthIsCheckedAgainAfterAFailure(t *testing.T) {
 		t.Error("still blocked after the check passed")
 	}
 }
+
+// The title is kept across screens and only filled in when empty, and the
+// tab keys skip reset(). So a batch run's title carried into a single run
+// started from the tab bar, and the new PR went out under the old title.
+func TestPickingAStepStartsWithAFreshTitle(t *testing.T) {
+	m := staleModel(ScreenPrTypeSelect)
+	mode := ModeSingle
+	m.mode = &mode
+	m.prTitle = "Sprint 41 — batch"
+	m.tickets = []string{"OLD-1"}
+	m.menuIndex = 0
+
+	next, _ := m.selectPrType()
+	got := next.(Model)
+	if got.prTitle != "" || len(got.tickets) != 0 {
+		t.Errorf("title %q, tickets %v carried into the new run", got.prTitle, got.tickets)
+	}
+}

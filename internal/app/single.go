@@ -195,6 +195,11 @@ func (m Model) selectPrType() (tea.Model, tea.Cmd) {
 	// A new step is a new run. Esc from the batch repo list lands back here
 	// with the previous step's fetch still streaming results.
 	m.newEpoch()
+	// The shared run fields too: the title is only filled in when empty, and
+	// the tab keys skip reset(), so a batch title reached the next single PR.
+	m.prTitle = ""
+	m.tickets = nil
+	m.commits = nil
 
 	if m.mode != nil && *m.mode == ModeBatch {
 		// Batch mode - load repos, then fetch commits in background
