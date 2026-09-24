@@ -378,6 +378,12 @@ func findNestedRepos(parentPath, group, parentName string) []models.RepoInfo {
 		}
 
 		path := filepath.Join(parentPath, repoName)
+		// A submodule's .git is a file pointing into the parent's .git. It is
+		// part of the parent, not a repo of its own, and counting it used to
+		// replace the parent in the list with the submodule.
+		if info, err := os.Stat(filepath.Join(path, ".git")); err != nil || !info.IsDir() {
+			continue
+		}
 		if IsGitRepo(path) {
 			displayName := group + "/" + parentName + "/" + repoName
 
