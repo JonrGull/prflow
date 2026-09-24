@@ -293,43 +293,47 @@ func dryRunActionsRuns() actionsRunsFetchedResult {
 	}}
 }
 
-// dryRunActionsJobs gives a pinned run one finished job, one in progress and
-// one queued, so the expanded step list has something of each to draw.
+// dryRunActionsJobs gives each run from dryRunActionsRuns jobs that match how
+// it went: a running run has a step in progress, a failed one a failed step.
 func dryRunActionsJobs(runID uint64) actionsJobsFetchedResult {
 	time.Sleep(dryRunNormal)
-	now := time.Now()
+	step := func(n int, name, status, conclusion string) models.WorkflowStep {
+		return models.WorkflowStep{Name: name, Number: n, Status: status, Conclusion: conclusion}
+	}
+	done := func(n int, name string) models.WorkflowStep { return step(n, name, "completed", "success") }
+	job := func(name, status, conclusion string, steps ...models.WorkflowStep) models.WorkflowJob {
+		return models.WorkflowJob{Name: name, Status: status, Conclusion: conclusion, Steps: steps,
+			URL: fmt.Sprintf("https://github.com/example/repo/actions/runs/%d", runID)}
+	}
+	passed := func(name string) models.WorkflowJob {
+		return job(name, "completed", "success", done(1, "Checkout"), done(2, "Setup Node"), done(3, "Run"))
+	}
 
-	return actionsJobsFetchedResult{runID: runID, jobs: []models.WorkflowJob{
-		{
-			Name: "build", Status: "completed", Conclusion: "success",
-			StartedAt: now.Add(-5 * time.Minute), CompletedAt: now.Add(-3 * time.Minute),
-			URL: "https://github.com/example/repo/actions/runs/1001/job/1",
-			Steps: []models.WorkflowStep{
-				{Name: "Checkout", Number: 1, Status: "completed", Conclusion: "success"},
-				{Name: "Setup Node", Number: 2, Status: "completed", Conclusion: "success"},
-				{Name: "Install deps", Number: 3, Status: "completed", Conclusion: "success"},
-				{Name: "Build", Number: 4, Status: "completed", Conclusion: "success"},
-			},
-		},
-		{
-			Name: "test", Status: "in_progress", Conclusion: "",
-			StartedAt: now.Add(-2 * time.Minute),
-			URL:       "https://github.com/example/repo/actions/runs/1001/job/2",
-			Steps: []models.WorkflowStep{
-				{Name: "Checkout", Number: 1, Status: "completed", Conclusion: "success"},
-				{Name: "Setup Node", Number: 2, Status: "completed", Conclusion: "success"},
-				{Name: "Run tests", Number: 3, Status: "in_progress", Conclusion: ""},
-				{Name: "Upload coverage", Number: 4, Status: "queued", Conclusion: ""},
-			},
-		},
-		{
-			Name: "deploy", Status: "queued", Conclusion: "",
-			URL: "https://github.com/example/repo/actions/runs/1001/job/3",
-			Steps: []models.WorkflowStep{
-				{Name: "Deploy to staging", Number: 1, Status: "queued", Conclusion: ""},
-			},
-		},
-	}}
+	var jobs []models.WorkflowJob
+	switch runID {
+	case 1001, 3001: // running
+		jobs = []models.WorkflowJob{
+			passed("build"),
+			job("test", "in_progress", "", done(1, "Checkout"), done(2, "Setup Node"),
+				step(3, "Run tests", "in_progress", ""), step(4, "Upload coverage", "queued", "")),
+			job("deploy", "queued", "", step(1, "Deploy to staging", "queued", "")),
+		}
+	case 2001: // failed
+		jobs = []models.WorkflowJob{
+			passed("build"),
+			job("test", "completed", "failure", done(1, "Checkout"), done(2, "Setup Node"),
+				step(3, "Run tests", "completed", "failure"), step(4, "Upload coverage", "completed", "skipped")),
+			passed("lint"),
+		}
+	case 3002: // queued
+		jobs = []models.WorkflowJob{job("deploy", "queued", "", step(1, "Deploy to staging", "queued", ""))}
+	case 4001: // cancelled
+		jobs = []models.WorkflowJob{job("build", "completed", "cancelled", done(1, "Checkout"),
+			step(2, "Install deps", "completed", "cancelled"))}
+	default:
+		jobs = []models.WorkflowJob{passed("build"), passed("test"), passed("deploy")}
+	}
+	return actionsJobsFetchedResult{runID: runID, jobs: jobs}
 }
 
 // --- Dashboard --------------------------------------------------------------

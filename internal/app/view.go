@@ -398,7 +398,7 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 	case ScreenViewAllPrs:
 		return m.renderViewAllPrsWithHeight(availableHeight)
 	case ScreenActionsOverview:
-		return m.renderActionsOverviewWithHeight(availableHeight)
+		return m.renderActionsOverviewWithHeight(m.unboxedHeight())
 	case ScreenQaTagSelect:
 		return m.renderQaTagSelect()
 	case ScreenSettings:

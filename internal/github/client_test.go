@@ -335,3 +335,18 @@ func TestMergeStatesKeepsWhatItCan(t *testing.T) {
 		t.Errorf("gh %s: variables not passed as expected", a)
 	}
 }
+
+// A watched run pushed out of its repo's latest runs is fetched by ID.
+func TestGetWorkflowRunByNWO(t *testing.T) {
+	args := fakeGh(t, `{"id":42,"name":"deploy","status":"completed","conclusion":"success","updated_at":"2026-09-24T10:00:00Z"}`, 0)
+	run, err := GetWorkflowRunByNWO("acme/web", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.DatabaseID != 42 || run.WorkflowName != "deploy" || run.Conclusion != "success" {
+		t.Errorf("run = %+v", run)
+	}
+	if a := args(); !strings.Contains(a, "repos/acme/web/actions/runs/42") {
+		t.Errorf("gh %s", a)
+	}
+}

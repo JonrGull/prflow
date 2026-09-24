@@ -700,43 +700,62 @@ func listWorkflowRuns(path string) ([]models.WorkflowRun, error) {
 	}
 
 	var resp struct {
-		WorkflowRuns []struct {
-			ID           uint64    `json:"id"`
-			DisplayTitle string    `json:"display_title"`
-			Name         string    `json:"name"` // workflow name
-			Status       string    `json:"status"`
-			Conclusion   *string   `json:"conclusion"`
-			HeadBranch   string    `json:"head_branch"`
-			Event        string    `json:"event"`
-			HTMLURL      string    `json:"html_url"`
-			CreatedAt    time.Time `json:"created_at"`
-			UpdatedAt    time.Time `json:"updated_at"`
-		} `json:"workflow_runs"`
+		WorkflowRuns []restRun `json:"workflow_runs"`
 	}
 	if err := json.Unmarshal(output, &resp); err != nil {
 		return nil, fmt.Errorf("failed to parse actions/runs: %w", err)
 	}
-
 	var runs []models.WorkflowRun
 	for _, r := range resp.WorkflowRuns {
-		conclusion := ""
-		if r.Conclusion != nil {
-			conclusion = *r.Conclusion
-		}
-		runs = append(runs, models.WorkflowRun{
-			DatabaseID:   r.ID,
-			DisplayTitle: r.DisplayTitle,
-			WorkflowName: r.Name,
-			Status:       r.Status,
-			Conclusion:   conclusion,
-			HeadBranch:   r.HeadBranch,
-			Event:        r.Event,
-			URL:          r.HTMLURL,
-			CreatedAt:    r.CreatedAt,
-			UpdatedAt:    r.UpdatedAt,
-		})
+		runs = append(runs, r.toModel())
 	}
 	return runs, nil
+}
+
+// GetWorkflowRunByNWO fetches one workflow run by its ID.
+func GetWorkflowRunByNWO(nwo string, runID uint64) (models.WorkflowRun, error) {
+	output, err := run.Combined(run.Network, "", "gh", "api", fmt.Sprintf("repos/%s/actions/runs/%d", nwo, runID))
+	if err != nil {
+		return models.WorkflowRun{}, fmt.Errorf("gh api actions/runs/%d failed: %s", runID, string(output))
+	}
+	var r restRun
+	if err := json.Unmarshal(output, &r); err != nil {
+		return models.WorkflowRun{}, fmt.Errorf("failed to parse actions/runs/%d: %w", runID, err)
+	}
+	return r.toModel(), nil
+}
+
+// restRun is a workflow run as the REST API returns it.
+type restRun struct {
+	ID           uint64    `json:"id"`
+	DisplayTitle string    `json:"display_title"`
+	Name         string    `json:"name"` // workflow name
+	Status       string    `json:"status"`
+	Conclusion   *string   `json:"conclusion"`
+	HeadBranch   string    `json:"head_branch"`
+	Event        string    `json:"event"`
+	HTMLURL      string    `json:"html_url"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (r restRun) toModel() models.WorkflowRun {
+	conclusion := ""
+	if r.Conclusion != nil {
+		conclusion = *r.Conclusion
+	}
+	return models.WorkflowRun{
+		DatabaseID:   r.ID,
+		DisplayTitle: r.DisplayTitle,
+		WorkflowName: r.Name,
+		Status:       r.Status,
+		Conclusion:   conclusion,
+		HeadBranch:   r.HeadBranch,
+		Event:        r.Event,
+		URL:          r.HTMLURL,
+		CreatedAt:    r.CreatedAt,
+		UpdatedAt:    r.UpdatedAt,
+	}
 }
 
 // GetWorkflowRunJobs gets the jobs for a specific workflow run via REST API

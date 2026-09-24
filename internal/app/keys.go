@@ -210,33 +210,29 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 	},
 
 	ScreenActionsOverview: func(m Model) []keyHint {
-		if m.actions.filterActive {
+		if m.actions.filterTyping {
 			return []keyHint{
 				hintFilter,
+				{"Enter", "Keep", ui.ColorGreen},
 				{"Esc", "Clear", ui.ColorYellow},
 			}
 		}
-		auto := keyHint{"R", toggleLabel("Auto-refresh", m.actions.autoRefresh), ui.ColorBlue}
-		if m.actions.column == 1 {
-			return []keyHint{
-				hintNavigate,
-				{"←", "Runs", ui.ColorWhite},
-				hintOpen,
-				auto,
-				hintBack,
-			}
+		auto := keyHint{"a", toggleLabel("Auto-refresh", m.actions.autoRefresh), ui.ColorBlue}
+		if len(m.actions.entries) == 0 {
+			return []keyHint{hintRefresh, auto, hintBack}
 		}
-		return []keyHint{
-			hintNavigate,
-			{"→", "Pinned", ui.ColorWhite},
-			{"Space", "Pin", ui.ColorGreen},
-			{"a", "All", ui.ColorCyan},
-			{"n", "None", ui.ColorCyan},
-			hintOpen,
-			auto,
-			{"/", "Filter", ui.ColorYellow},
-			hintBack,
+		watch := keyHint{"Space", "Watch", ui.ColorGreen}
+		if e, ok := m.highlightedRun(); ok && m.isWatched(e.Run.DatabaseID) {
+			watch.Desc = "Unwatch"
 		}
+		hints := []keyHint{hintNavigate, watch, hintOpen, hintRefresh, auto}
+		if len(m.actions.watched) > 0 {
+			hints = append(hints, keyHint{"n", "Unwatch all", ui.ColorCyan})
+		}
+		if m.actions.filter != "" {
+			return append(hints, keyHint{"Esc", "Clear filter", ui.ColorYellow})
+		}
+		return append(hints, keyHint{"/", "Filter", ui.ColorYellow}, hintBack)
 	},
 
 	ScreenFirstRun: func(m Model) []keyHint {

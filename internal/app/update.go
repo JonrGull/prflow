@@ -258,6 +258,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case actionsRefreshTickMsg:
 		return m.handleActionsRefreshTick(msg)
 
+	case actionsPreviewMsg:
+		return m.handleActionsPreview(msg)
+
 	case actionsJobsFetchedResult:
 		return m.handleActionsJobsFetched(msg)
 
@@ -298,7 +301,7 @@ func (m *Model) isTextInputActive() bool {
 	case ScreenTitleInput, ScreenCommitReview:
 		return true
 	case ScreenActionsOverview:
-		return m.actions.filterActive
+		return m.actions.filterTyping
 	case ScreenBatchRepoSelect:
 		// This list filters as you type, with no mode to enter. Once something
 		// is typed, F ? [ ] belong to the filter; before that they keep
@@ -369,11 +372,12 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 	case 4: // Actions — use cached if available
 		if len(m.actions.entries) > 0 {
 			m.screen = ScreenActionsOverview
+			preview := m.previewActionsRun()
 			if m.actions.autoRefresh {
 				cmd := m.startActionsRefresh()
-				return m, cmd
+				return m, tea.Batch(cmd, preview)
 			}
-			return m, nil
+			return m, preview
 		}
 		m.menuIndex = 4
 		return m.selectMainMenuItem()

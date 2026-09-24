@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JonrGull/prflow/internal/models"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -39,7 +41,9 @@ func fetches(t *testing.T, cmd tea.Cmd) bool {
 
 func actionsModel() Model {
 	m := staleModel(ScreenActionsOverview)
-	m.actions.entries = []actionsEntry{{}}
+	// A finished run whose jobs are in, so a refresh has no jobs to fetch.
+	m.actions.entries = []actionsEntry{{Run: models.WorkflowRun{DatabaseID: 1, Status: "completed"}}}
+	m.actions.jobs = map[uint64]runJobs{1: {jobs: []models.WorkflowJob{}, done: true}}
 	m.actions.autoRefresh = true
 	_ = m.startActionsRefresh()
 	return m
@@ -49,8 +53,8 @@ func TestActionsToggleEndsTheOldChain(t *testing.T) {
 	m := actionsModel()
 	old := actionsRefreshTickMsg{gen: m.actions.refreshGen}
 
-	m = send(t, m, key("R")) // off
-	m = send(t, m, key("R")) // on: a new chain
+	m = send(t, m, key("a")) // off
+	m = send(t, m, key("a")) // on: a new chain
 
 	if _, cmd := deliver(t, m, old); cmd != nil {
 		t.Error("a tick from the chain before the toggle still ran")

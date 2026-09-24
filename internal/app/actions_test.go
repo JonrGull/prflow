@@ -8,144 +8,141 @@ import (
 	"time"
 
 	"github.com/JonrGull/prflow/internal/models"
-	"github.com/JonrGull/prflow/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
-// The pinned panels scroll by line offset, so adjustActionsPinnedScroll has to
-// know how tall renderPinnedPanel will draw a panel before it draws it. That
-// makes pinnedPanelLines a second, independent statement of the renderer's
-// layout, and the failure mode when they drift is silent: the right-hand column
-// scrolls to the wrong place, with nothing crashing and no golden moving.
-//
-// This is the check that makes the two agree by test rather than by memory.
-func TestPinnedPanelLinesMatchRender(t *testing.T) {
-	m := populatedModel()
-	m.width, m.height = 120, 40
-
-	step := func(name string, n int, status, conclusion string) models.WorkflowStep {
-		return models.WorkflowStep{Name: name, Number: n, Status: status, Conclusion: conclusion}
-	}
-	job := func(name, status, conclusion string, steps ...models.WorkflowStep) models.WorkflowJob {
-		return models.WorkflowJob{Name: name, Status: status, Conclusion: conclusion, Steps: steps}
-	}
-	panelWith := func(jobs []models.WorkflowJob) actionsPanel {
-		return actionsPanel{
-			Run:  models.WorkflowRun{DatabaseID: 900, DisplayTitle: "Deploy", WorkflowName: "deploy", HeadBranch: "dev", UpdatedAt: ago(90 * time.Second)},
-			Repo: testRepos()[0],
-			Jobs: jobs,
-		}
-	}
-
-	cases := []struct {
-		name  string
-		panel actionsPanel
-	}{
-		// nil Jobs is the loading branch, which renders a spinner line instead
-		// of the job list — a different arm of the arithmetic.
-		{"loading", panelWith(nil)},
-		{"no jobs", panelWith([]models.WorkflowJob{})},
-
-		// A passing job contributes one line and hides its steps. Counting
-		// those steps is the mistake this case exists to catch.
-		{"success hides steps", panelWith([]models.WorkflowJob{
-			job("build", "completed", "success",
-				step("checkout", 1, "completed", "success"),
-				step("test", 2, "completed", "success")),
-		})},
-
-		// A failed job expands, but only its failed steps.
-		{"failure expands failed steps", panelWith([]models.WorkflowJob{
-			job("build", "completed", "failure",
-				step("checkout", 1, "completed", "success"),
-				step("test", 2, "completed", "failure"),
-				step("lint", 3, "completed", "failure")),
-		})},
-
-		// In-progress expands too, on the step's status rather than conclusion.
-		{"in progress expands running steps", panelWith([]models.WorkflowJob{
-			job("build", "in_progress", "",
-				step("checkout", 1, "completed", "success"),
-				step("test", 2, "in_progress", "")),
-		})},
-
-		{"several jobs", panelWith([]models.WorkflowJob{
-			job("build", "completed", "success"),
-			job("test", "completed", "failure", step("unit", 1, "completed", "failure")),
-			job("deploy", "queued", ""),
-		})},
-	}
-
-	// Long names at narrow widths: ColumnBox wrapped anything wider than the
-	// panel, so at 80 columns a realistic run drew 7 lines against an
-	// estimate of 5.
-	long := panelWith([]models.WorkflowJob{
-		job("integration-tests-against-staging-database", "completed", "failure",
-			step("run the complete end-to-end browser suite", 1, "completed", "failure")),
-	})
-	long.Run.WorkflowName = "deploy-preview-environment"
-	long.Run.HeadBranch = "feature/a-rather-long-branch-name"
-	long.Run.DisplayTitle = "A pull request title that goes on for a while"
-	long.Repo = models.NewRepoInfo("/r", "Frontend/an-unusually-long-repository-name", "main", "Frontend")
-	cases = append(cases, struct {
-		name  string
-		panel actionsPanel
-	}{"long names", long})
-
-	for _, width := range []int{60, 42, 30} {
-		for _, tc := range cases {
-			t.Run(fmt.Sprintf("%s at %d", tc.name, width), func(t *testing.T) {
-				got := lineCount(m.renderPinnedPanel(tc.panel, ui.ColorCyan, width, false))
-				if want := pinnedPanelLines(tc.panel); got != want {
-					t.Errorf("renderPinnedPanel drew %d lines, pinnedPanelLines says %d — "+
-						"the pinned column will scroll to the wrong offset", got, want)
-				}
-			})
-		}
-	}
-
-	// Panels are stacked with JoinVertical and no separator, so the scroller's
-	// running total is only right if the heights sum exactly.
-	t.Run("panels sum", func(t *testing.T) {
-		var blocks []string
-		total := 0
-		for _, tc := range cases {
-			blocks = append(blocks, m.renderPinnedPanel(tc.panel, ui.ColorCyan, 60, false))
-			total += pinnedPanelLines(tc.panel)
-		}
-		if got := lineCount(lipgloss.JoinVertical(lipgloss.Left, blocks...)); got != total {
-			t.Errorf("%d panels joined to %d lines, heights sum to %d", len(blocks), got, total)
-		}
-	})
+func actionsRun(id uint64, workflow string, repo models.RepoInfo) actionsEntry {
+	return actionsEntry{Repo: repo, Run: models.WorkflowRun{DatabaseID: id, WorkflowName: workflow,
+		Status: "completed", Conclusion: "success", HeadBranch: "main", UpdatedAt: time.Now()}}
 }
 
-func lineCount(s string) int { return strings.Count(s, "\n") + 1 }
+// The list was sorted by time but grouped by repo, so a header was drawn each
+// time the repo changed: 24 runs from three repos drew 20 headers, and a
+// 40-row terminal showed about eight runs. One line per run shows them all.
+func TestActionsListIsOneLinePerRun(t *testing.T) {
+	m := sized(staleModel(ScreenActionsOverview))
+	repos := testRepos()
+	for i := 0; i < 24; i++ {
+		m.actions.entries = append(m.actions.entries, actionsRun(uint64(i+1), fmt.Sprintf("wf-%02d", i), repos[i%3]))
+	}
+	view := m.View()
+	for i := 0; i < 24; i++ {
+		if want := fmt.Sprintf("wf-%02d", i); !strings.Contains(view, want) {
+			t.Fatalf("%s is not on screen: the list shows fewer runs than fit", want)
+		}
+	}
+}
+
+// Repos in one org share a prefix, so cutting the end of the name left every
+// row reading "attuned.marketi…" or "attuned.resonan…".
+func TestActionsRepoNamesKeepTheirEnd(t *testing.T) {
+	if got := truncateStart("attuned.marketing_site", 15); got != "…marketing_site" {
+		t.Errorf("got %q", got)
+	}
+	if got := truncateStart("web", 16); got != "web" {
+		t.Errorf("a name that fits was cut: %q", got)
+	}
+}
+
+// A run's jobs only showed once it was pinned and the pinned column entered.
+// The detail pane follows the cursor, fetching once the cursor rests.
+func TestActionsDetailFollowsTheCursor(t *testing.T) {
+	m := sized(staleModel(ScreenActionsOverview))
+	repos := testRepos()
+	m.actions.entries = []actionsEntry{actionsRun(1, "ci", repos[0]), actionsRun(2, "deploy", repos[1])}
+
+	next, cmd := m.Update(keyDown)
+	m = next.(Model)
+	if cmd == nil {
+		t.Fatal("moving the cursor scheduled no preview")
+	}
+	if len(m.actions.jobs) != 0 {
+		t.Error("a fetch started before the cursor rested, so holding ↓ fetches every run")
+	}
+
+	m, cmd = deliver(t, m, actionsPreviewMsg{runID: 1})
+	if cmd != nil {
+		t.Error("a preview for a run the cursor has left started a fetch")
+	}
+	m, cmd = deliver(t, m, actionsPreviewMsg{runID: 2})
+	if cmd == nil || !m.actions.jobs[2].loading {
+		t.Fatal("the highlighted run's preview did not fetch its jobs")
+	}
+
+	m = send(t, m, actionsJobsFetchedResult{runID: 2, of: m.actions.entries[1].Run.UpdatedAt,
+		jobs: []models.WorkflowJob{{Name: "publish-images", Status: "completed", Conclusion: "success"}}})
+	if !strings.Contains(m.View(), "publish-images") {
+		t.Error("the fetched jobs are not in the detail pane")
+	}
+}
+
+// With the filter open there was no Enter, Space typed a space and Esc
+// cleared it, so a filtered run could not be pinned. Enter keeps it now.
+func TestActionsFilterCanBeKept(t *testing.T) {
+	m := sized(staleModel(ScreenActionsOverview))
+	repos := testRepos()
+	m.actions.entries = []actionsEntry{actionsRun(1, "ci", repos[0]), actionsRun(2, "deploy", repos[1]), actionsRun(3, "ci", repos[2])}
+
+	m = send(t, m, key("/"))
+	m = send(t, m, key("deploy"))
+	m = send(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.actions.filterTyping || m.actions.filter != "deploy" || len(m.getFilteredActions()) != 1 {
+		t.Fatalf("after Enter: typing %v, filter %q, %d runs", m.actions.filterTyping, m.actions.filter, len(m.getFilteredActions()))
+	}
+	m = send(t, m, tea.KeyMsg{Type: tea.KeySpace})
+	if !m.isWatched(2) {
+		t.Fatal("Space did not watch the filtered run")
+	}
+
+	m = send(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if e, _ := m.highlightedRun(); m.actions.filter != "" || e.Run.DatabaseID != 2 {
+		t.Errorf("Esc: filter %q, cursor on run %d, want the filter gone and the cursor still on run 2", m.actions.filter, e.Run.DatabaseID)
+	}
+	// Esc called reset(), which threw the watched runs away; the tab keys kept them.
+	m = send(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.screen != ScreenMainMenu || !m.isWatched(2) {
+		t.Errorf("second Esc: screen %v, watching run 2 %v", m.screen, m.isWatched(2))
+	}
+}
 
 // Typing in the Actions filter: Space pinned the highlighted run and → moved
 // to the pinned column mid-word.
 func TestActionsFilterKeepsSpaceAndArrows(t *testing.T) {
 	m := populatedModel()
 	m.screen = ScreenActionsOverview
-	m.actions.filterActive = true
+	m.actions.filterTyping = true
 	m.actions.filter = "ci"
-	m.actions.pinned = []actionsPanel{{Run: m.actions.entries[0].Run}}
-	before := len(m.actions.pinned)
+	before := len(m.actions.watched)
 
 	m = send(t, m, tea.KeyMsg{Type: tea.KeySpace})
 	m = send(t, m, tea.KeyMsg{Type: tea.KeyRight})
+	m = send(t, m, key("o"))
 
-	if m.actions.filter != "ci " || len(m.actions.pinned) != before || m.actions.column != 0 {
-		t.Errorf("filter %q, pinned %d, column %d: want the space typed and nothing else",
-			m.actions.filter, len(m.actions.pinned), m.actions.column)
+	if m.actions.filter != "ci o" || len(m.actions.watched) != before {
+		t.Errorf("filter %q, watched %d: want the text typed and nothing else", m.actions.filter, len(m.actions.watched))
 	}
 }
 
-// A pinned run that finished behind a newer run of the same workflow was
-// dropped by the one-finished-run-per-workflow rule, so its panel never
-// updated again and spun forever.
-func TestPinnedRunSurvivesTheWorkflowFilter(t *testing.T) {
+// New runs arrive at the top of the list, so on every refresh the highlight
+// slid to whichever run now had its row.
+func TestActionsRefreshKeepsTheCursorOnItsRun(t *testing.T) {
+	m := sized(staleModel(ScreenActionsOverview))
+	repos := testRepos()
+	m.actions.entries = []actionsEntry{actionsRun(1, "a", repos[0]), actionsRun(2, "b", repos[0]), actionsRun(3, "c", repos[0])}
+	m.actions.index = 1
+
+	fresh := append([]actionsEntry{actionsRun(9, "new", repos[1])}, m.actions.entries...)
+	m, _ = deliver(t, m, actionsRunsFetchedResult{entries: fresh})
+	if e, _ := m.highlightedRun(); e.Run.DatabaseID != 2 {
+		t.Errorf("cursor on run %d after the refresh, want run 2", e.Run.DatabaseID)
+	}
+}
+
+// A watched run that finished behind a newer run of the same workflow was
+// dropped by the one-finished-run-per-workflow rule, so it never updated
+// again.
+func TestWatchedRunSurvivesTheWorkflowFilter(t *testing.T) {
 	now := time.Now()
 	runs := []models.WorkflowRun{
 		{DatabaseID: 2, WorkflowName: "ci", Status: "completed", UpdatedAt: now},
@@ -156,47 +153,74 @@ func TestPinnedRunSurvivesTheWorkflowFilter(t *testing.T) {
 		ids = append(ids, r.DatabaseID)
 	}
 	if len(ids) != 2 {
-		t.Errorf("kept runs %v, want the newest ci run and the pinned one", ids)
+		t.Errorf("kept runs %v, want the newest ci run and the watched one", ids)
 	}
 	if got := selectActionsRuns(runs, now.Add(-48*time.Hour), nil); len(got) != 1 || got[0].DatabaseID != 2 {
-		t.Errorf("unpinned: kept %+v, want only the newest finished ci run", got)
+		t.Errorf("unwatched: kept %+v, want only the newest finished ci run", got)
 	}
 }
 
-// One failed jobs fetch unpinned the run without a word. It stays pinned
-// now, and the next refresh fetches its jobs again.
-func TestFailedJobsFetchKeepsThePin(t *testing.T) {
-	m := populatedModel()
-	m.screen = ScreenActionsOverview
-	run := m.actions.entries[0].Run
-	run.Status = "completed"
-	m.actions.pinned = []actionsPanel{{Run: run, Repo: m.actions.entries[0].Repo}}
+// A failed jobs fetch is shown, and the next refresh asks again rather than
+// leaving the pane on the error.
+func TestFailedJobsFetchIsAskedAgain(t *testing.T) {
+	m := sized(staleModel(ScreenActionsOverview))
+	e := actionsRun(1, "ci", testRepos()[0])
+	m.actions.entries = []actionsEntry{e}
+	_ = m.fetchRunJobs(e)
 
-	m = send(t, m, actionsJobsFetchedResult{runID: run.DatabaseID, err: errors.New("HTTP 502")})
-	if len(m.actions.pinned) != 1 {
-		t.Fatal("a failed jobs fetch unpinned the run")
+	m = send(t, m, actionsJobsFetchedResult{runID: 1, of: e.Run.UpdatedAt, err: errors.New("HTTP 502")})
+	if !strings.Contains(m.View(), "Couldn't load jobs: HTTP 502") {
+		t.Error("the failed fetch is not shown")
 	}
-	entries := []actionsEntry{{Repo: m.actions.entries[0].Repo, Run: run}}
-	_, cmd := m.Update(epochMsg{epoch: m.epoch, msg: actionsRunsFetchedResult{entries: entries}})
-	if cmd == nil {
+	if _, cmd := deliver(t, m, actionsRunsFetchedResult{entries: m.actions.entries}); cmd == nil {
 		t.Error("the refresh did not fetch the missing jobs again")
 	}
+
+	// A finished run's jobs, once fetched, are final.
+	m = send(t, m, actionsJobsFetchedResult{runID: 1, of: e.Run.UpdatedAt, done: true, jobs: []models.WorkflowJob{{Name: "build"}}})
+	if _, cmd := deliver(t, m, actionsRunsFetchedResult{entries: m.actions.entries}); cmd != nil {
+		t.Error("a finished run's jobs were fetched again")
+	}
 }
 
-// Unpinning the last panels left the scroll past the end: a blank column.
-func TestUnpinClampsTheScroll(t *testing.T) {
-	m := populatedModel()
-	m.screen = ScreenActionsOverview
-	m.width, m.height = 120, 40
-	for i := 0; i < 8; i++ {
-		m.actions.pinned = append(m.actions.pinned, actionsPanel{Run: models.WorkflowRun{DatabaseID: uint64(100 + i)}, Jobs: []models.WorkflowJob{{Name: "j"}}})
-	}
-	m.actions.pinnedIndex = 7
-	m.adjustActionsPinnedScroll()
-	for i := 7; i >= 2; i-- {
-		m.unpinRun(uint64(100 + i))
-	}
-	if m.actions.pinnedScroll != 0 {
-		t.Errorf("pinnedScroll = %d with two short panels left, want 0", m.actions.pinnedScroll)
+// A rerun keeps the run's ID, and its jobs were cached as final, so the pane
+// showed the previous attempt's failure beside a run that now passed.
+func TestActionsRerunFetchesNewJobs(t *testing.T) {
+	m := sized(staleModel(ScreenActionsOverview))
+	e := actionsRun(1, "ci", testRepos()[0])
+	m.actions.entries = []actionsEntry{e}
+	_ = m.fetchRunJobs(e)
+	m = send(t, m, actionsJobsFetchedResult{runID: 1, of: e.Run.UpdatedAt, done: true, jobs: []models.WorkflowJob{{Name: "build"}}})
+
+	rerun := e
+	rerun.Run.UpdatedAt = e.Run.UpdatedAt.Add(time.Minute)
+	if _, cmd := deliver(t, m, actionsRunsFetchedResult{entries: []actionsEntry{rerun}}); cmd == nil {
+		t.Error("the rerun's jobs were not fetched")
 	}
 }
+
+// Answers can arrive out of order. An older request's jobs must not replace
+// a newer one's, or the newer run's state is lost.
+func TestActionsOlderJobsAnswerIsDropped(t *testing.T) {
+	m := staleModel(ScreenActionsOverview)
+	e := actionsRun(1, "ci", testRepos()[0])
+	_ = m.fetchRunJobs(e)
+	m.actions.jobs[1] = runJobs{loading: true, asked: e.Run.UpdatedAt.Add(time.Minute)}
+
+	m = send(t, m, actionsJobsFetchedResult{runID: 1, of: e.Run.UpdatedAt, jobs: []models.WorkflowJob{{Name: "old"}}})
+	if c := m.actions.jobs[1]; c.jobs != nil || !c.loading {
+		t.Errorf("jobs = %+v, want the older answer dropped and the newer request still out", c)
+	}
+}
+
+// A watched run pushed out of its repo's latest runs is asked for by ID.
+func TestUnfetchedWatchedRuns(t *testing.T) {
+	repo := testRepos()[0]
+	watched := []actionsEntry{actionsRun(1, "deploy", repo), actionsRun(2, "ci", repo)}
+	got := unfetchedWatched(watched, map[uint64]bool{2: true, 3: true})
+	if len(got) != 1 || got[0].Run.DatabaseID != 1 {
+		t.Errorf("unfetched = %+v, want only run 1", got)
+	}
+}
+
+func lineCount(s string) int { return strings.Count(s, "\n") + 1 }

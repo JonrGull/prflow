@@ -89,10 +89,11 @@ func TestScreenRenders(t *testing.T) {
 // actually stands — screens that have been made to fit, and are held to it.
 // Moving a screen into this list is the way to pay the debt down one at a time.
 var heightAwareScreens = map[Screen]bool{
-	ScreenMainMenu:       true,
-	ScreenSettings:       true,
-	ScreenListEdit:       true,
-	ScreenSessionHistory: true,
+	ScreenMainMenu:        true,
+	ScreenActionsOverview: true,
+	ScreenSettings:        true,
+	ScreenListEdit:        true,
+	ScreenSessionHistory:  true,
 }
 
 // Nothing may be wider than the terminal.
@@ -295,13 +296,18 @@ func screenCases() []screenCase {
 	cases = append(cases, screenCase{"settings_editing", ScreenSettings, editing})
 
 	filtered := populatedModel()
-	filtered.actions.filterActive = true
+	filtered.actions.filterTyping = true
 	filtered.actions.filter = "deploy"
-	cases = append(cases, screenCase{"actions_filtering", ScreenActionsOverview, filtered})
-
-	pinned := populatedModel()
-	pinned.actions.column = 1
-	cases = append(cases, screenCase{"actions_pinned_column", ScreenActionsOverview, pinned})
+	kept := populatedModel()
+	kept.actions.filter = "ci"
+	// The failed run highlighted: its failed step under its job, and the
+	// Unwatch hint since it is watched.
+	failedRun := populatedModel()
+	failedRun.actions.index = 1
+	cases = append(cases,
+		screenCase{"actions_filtering", ScreenActionsOverview, filtered},
+		screenCase{"actions_filter_kept", ScreenActionsOverview, kept},
+		screenCase{"actions_failed_run", ScreenActionsOverview, failedRun})
 
 	// A draft PR on the highlighted row. Drafts render dim, and the dim colour
 	// is ColorDarkGray — which is also the highlight background, so a selected
@@ -666,17 +672,25 @@ func populatedModel() Model {
 		{Repo: repos[1], Run: models.WorkflowRun{DatabaseID: 901, DisplayTitle: "CI 日本語", WorkflowName: "ci", Status: "completed", Conclusion: "failure", HeadBranch: "staging", Event: "pull_request", UpdatedAt: ago(30 * time.Minute)}},
 		{Repo: repos[2], Run: models.WorkflowRun{DatabaseID: 902, DisplayTitle: "E2E 🚀", WorkflowName: "e2e", Status: "completed", Conclusion: "success", HeadBranch: "main", Event: "schedule", UpdatedAt: ago(26 * time.Hour)}},
 	}
-	m.actions.pinned = []actionsPanel{{
-		Run:  m.actions.entries[1].Run,
-		Repo: repos[1],
-		Jobs: []models.WorkflowJob{{
+	// The highlighted run is running and the watched one failed, so the detail
+	// pane and the watch list each have steps to show.
+	m.actions.watched = []actionsEntry{m.actions.entries[1]}
+	m.actions.jobs = map[uint64]runJobs{
+		900: {of: m.actions.entries[0].Run.UpdatedAt, jobs: []models.WorkflowJob{
+			{Name: "build", Status: "completed", Conclusion: "success"},
+			{Name: "deploy", Status: "in_progress", Steps: []models.WorkflowStep{
+				{Name: "checkout", Number: 1, Status: "completed", Conclusion: "success"},
+				{Name: "upload", Number: 2, Status: "in_progress"},
+			}},
+		}},
+		901: {of: m.actions.entries[1].Run.UpdatedAt, done: true, jobs: []models.WorkflowJob{{
 			Name: "build", Status: "completed", Conclusion: "failure",
 			Steps: []models.WorkflowStep{
 				{Name: "checkout", Number: 1, Status: "completed", Conclusion: "success"},
 				{Name: "test", Number: 2, Status: "completed", Conclusion: "failure"},
 			},
-		}},
-	}}
+		}}},
+	}
 
 	// All open PRs
 	m.allPRs.entries = []allPREntry{

@@ -61,7 +61,7 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
     ↓
 (View PRs) → ViewOpenPrs → MergeConfirmation → Merging → MergeSummary
     ↓
-(Actions) → ActionsOverview (split-panel, no sub-screens)
+(Actions) → ActionsOverview (run list and detail, no sub-screens)
 ```
 
 ## Key Patterns
@@ -83,7 +83,7 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 **Async Message Pattern:** Commands return `tea.Cmd` functions that emit typed result messages (e.g., `fetchCommitsResult`, `batchRepoResult`). New async operations need: (1) a result type, (2) a command function, (3) a handler — all three in the screen's own file — plus (4) a case in `update.go`'s `dispatch`, which is the only part that is shared.
 
 **Stale results are dropped, not handled:** a result that answers a flow's request gets `func (x) flowResult() {}` beside its type. `Update` stamps it with the current `epoch` (through `tea.Batch` and `tea.Sequence` too) and drops it if the epoch has moved on. The epoch moves on when you arrive at the main menu, switch tab, or pick a new release step (`newEpoch`). So a marked result's handler can assume the screen that asked is still showing. Forget the marker and the result is applied whenever it lands, which is how a late batch result used to start a PR in a repo ticked afterwards.
-- **Results that stay unmarked:** only update data keyed to what they fetched, never move the screen, and are harmless late. That covers a pinned run's jobs, where dropping left the panel loading forever; the settings QA-person lookup; and the first-run preview.
+- **Results that stay unmarked:** only update data keyed to what they fetched, never move the screen, and are harmless late. That covers a run's Actions jobs, where dropping left the panel loading forever; the settings QA-person lookup; and the first-run preview.
 - **A result holding something to release,** like a cancel func, also implements `abandon()`, which runs when it is dropped.
 - **A new "result is coming" flag** (a spinner or refresh guard) must be cleared in `newEpoch`, or it waits forever for a result that was dropped.
 - **No tabs while a multi-step write runs.** The tab keys are off on `isBusy` screens (creating, batch processing, merging, pulling, updating), because leaving would drop the results that start each next step. QA tagging is one command, so leaving the summary loses only its display, not the write.
@@ -148,7 +148,7 @@ list. Home is also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` c
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (73 cases in
+golden renders of every screen plus its interesting states (74 cases in
 `internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a
@@ -156,9 +156,13 @@ screen you didn't touch is the signal the goldens exist to give. `TestMain` pins
 lipgloss colour profile, the `timeNow` clock seam and the `configPathFn` path seam;
 without all three, renders differ between runs, machines and operating systems.
 
-**Two-Column Navigation:** Batch repo select, merge, and actions views share a pattern - separate indices per column, filter functions return indices into main slice, arrow keys navigate within column, left/right switches columns.
+**Two-Column Navigation:** Batch repo select and merge views share a pattern - separate indices per column, filter functions return indices into main slice, arrow keys navigate within column, left/right switches columns.
 
-**Actions Split-Panel:** Single `ScreenActionsOverview` with left (run list) and right (pinned detail panels). Space pins/unpins runs, `/` enters filter mode, `o` opens in browser. Auto-refreshes every 5s. Pinned panels show job/step details, re-fetched on refresh for active runs. **Refresh chains (Actions, All PRs):** start one only with `startActionsRefresh`/`startAllPRsRefresh`, which bump a generation that older ticks no longer match, and only a tick schedules the next tick. Fetch results used to schedule ticks too, so a toggle, a manual refresh or a tab round trip each added a chain and the `gh` calls multiplied. The chain stops when navigating away. Key caveat: `adjustActionsPinnedScroll` estimates panel line heights — must stay in sync with `renderPinnedPanel` output.
+**Actions** (`ScreenActionsOverview`): one flat list of runs, newest first, one line per run, with the highlighted run's jobs in a detail pane beside it and watched runs (`Space`) in a box below that. It used to group the list by repo while sorting it by time, so a header was drawn every time the repo changed, and a run's jobs only showed once it was pinned and the pinned column entered.
+- **Jobs** are cached by run ID in `actions.jobs`, and tied to the run's `UpdatedAt`, because a rerun keeps the ID. Moving the cursor sends `actionsPreviewMsg` after `actionsPreviewDelay`, and only a preview for the run still highlighted fetches, so holding ↓ starts no fetch per run. Go through `fetchRunJobs`: it skips a fetch already out and jobs that are final (fetched once the run had completed, for the `UpdatedAt` it still has). An answer older than the newest request for its run is dropped. Each runs refresh re-anchors the cursor on its run ID and refetches the highlighted and watched runs' jobs through it.
+- **Watched runs** always stay in the list, but the fetch only sees each repo's latest ten runs, so a watched run pushed out of them is fetched by ID (`unfetchedWatched`, `github.GetWorkflowRunByNWO`). Without that it stayed as last seen, running for good.
+- **Filter:** `/` gives the keyboard to the filter (`filterTyping`, which is what `isTextInputActive` reports); Enter keeps the filter and returns the keys, Esc clears it. Esc with a kept filter clears it; otherwise it goes Home the way the tab keys do, keeping the list and the watched runs.
+- **Refresh chains (Actions, All PRs):** start one only with `startActionsRefresh`/`startAllPRsRefresh`, which bump a generation that older ticks no longer match, and only a tick schedules the next tick. Fetch results used to schedule ticks too, so a toggle, a manual refresh or a tab round trip each added a chain and the `gh` calls multiplied. The chain stops when navigating away. Both screens use `r` to refresh now and `a` to toggle auto-refresh.
 
 ## Configuration (`~/.config/prflow.toml`)
 

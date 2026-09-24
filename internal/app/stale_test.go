@@ -85,20 +85,22 @@ func TestDroppedBatchLoadCancelsItsFetch(t *testing.T) {
 	}
 }
 
-// A pinned run's jobs are keyed to the run and never move the screen, so they
-// are not dropped. When they were, a completed run pinned just before a tab
-// round trip stayed on "Loading jobs" for good.
-func TestPinnedJobsAfterATabRoundTripFillThePanel(t *testing.T) {
+// A run's jobs are keyed to the run and never move the screen, so they are
+// not dropped. When they were, a completed run pinned just before a tab round
+// trip stayed on "Loading jobs" for good.
+func TestJobsAfterATabRoundTripFillTheCache(t *testing.T) {
 	m := staleModel(ScreenActionsOverview)
-	m.actions.pinned = []actionsPanel{{Run: models.WorkflowRun{DatabaseID: 5}}}
+	e := actionsEntry{Run: models.WorkflowRun{DatabaseID: 5, Status: "completed"}}
+	m.actions.watched = []actionsEntry{e}
+	_ = m.fetchRunJobs(e)
 	late := tagEpoch(m.epoch, func() tea.Msg {
 		return actionsJobsFetchedResult{runID: 5, jobs: make([]models.WorkflowJob, 2)}
 	})()
 
 	m.newEpoch() // what ] then [ does
 	m = send(t, m, late)
-	if len(m.actions.pinned) != 1 || len(m.actions.pinned[0].Jobs) != 2 {
-		t.Errorf("pinned panel = %+v, want its 2 jobs", m.actions.pinned)
+	if c := m.actions.jobs[5]; c.loading || len(c.jobs) != 2 {
+		t.Errorf("jobs for run 5 = %+v, want its 2 jobs", c)
 	}
 }
 

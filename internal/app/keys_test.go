@@ -137,17 +137,26 @@ func TestKeyHintsDynamic(t *testing.T) {
 	})
 
 	t.Run("actions has three distinct modes", func(t *testing.T) {
-		filtering := hintString(Model{screen: ScreenActionsOverview, actions: actionsState{filterActive: true}})
-		if filtering != "Type:Filter Esc:Clear" {
-			t.Errorf("filtering = %q", filtering)
+		typing := hintString(Model{screen: ScreenActionsOverview, actions: actionsState{filterTyping: true}})
+		if typing != "Type:Filter Enter:Keep Esc:Clear" {
+			t.Errorf("typing = %q", typing)
 		}
-		right := hintString(Model{screen: ScreenActionsOverview, actions: actionsState{column: 1}})
-		if !strings.Contains(right, "←:Runs") || strings.Contains(right, "Space:Pin") {
-			t.Errorf("pinned column = %q", right)
+		run := actionsEntry{Run: models.WorkflowRun{DatabaseID: 1}}
+		kept := hintString(Model{screen: ScreenActionsOverview, actions: actionsState{entries: []actionsEntry{run}, filter: "ci"}})
+		if !strings.Contains(kept, "Esc:Clear filter") || strings.Contains(kept, "Esc:Back") {
+			t.Errorf("filter kept = %q", kept)
 		}
-		left := hintString(Model{screen: ScreenActionsOverview})
-		if !strings.Contains(left, "Space:Pin") || !strings.Contains(left, "/:Filter") {
-			t.Errorf("run column = %q", left)
+		empty := hintString(Model{screen: ScreenActionsOverview})
+		if strings.Contains(empty, "Space") || !strings.Contains(empty, "r:Refresh") {
+			t.Errorf("no runs = %q", empty)
+		}
+		browsing := hintString(Model{screen: ScreenActionsOverview, actions: actionsState{entries: []actionsEntry{run}}})
+		if !strings.Contains(browsing, "Space:Watch") || !strings.Contains(browsing, "/:Filter") || strings.Contains(browsing, "Unwatch all") {
+			t.Errorf("browsing = %q", browsing)
+		}
+		watching := hintString(Model{screen: ScreenActionsOverview, actions: actionsState{entries: []actionsEntry{run}, watched: []actionsEntry{run}}})
+		if !strings.Contains(watching, "Space:Unwatch") || !strings.Contains(watching, "n:Unwatch all") {
+			t.Errorf("watching = %q", watching)
 		}
 	})
 

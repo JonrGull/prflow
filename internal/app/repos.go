@@ -5,6 +5,7 @@ import (
 
 	"github.com/JonrGull/prflow/internal/config"
 	"github.com/JonrGull/prflow/internal/git"
+	"github.com/JonrGull/prflow/internal/github"
 	"github.com/JonrGull/prflow/internal/models"
 )
 
@@ -93,4 +94,33 @@ func parallelMap[T, R any](items []T, fn func(T) R) []R {
 	}
 	wg.Wait()
 	return results
+}
+
+// repoNWO is a discovered repo with its GitHub owner/repo.
+type repoNWO struct {
+	Repo models.RepoInfo
+	NWO  string
+}
+
+// githubRepos looks up each repo's owner/repo, leaving out repos with no GitHub
+// remote.
+func githubRepos(repos []models.RepoInfo) []repoNWO {
+	return uniqueGitHubRepos(parallelMap(repos, func(r models.RepoInfo) repoNWO {
+		nwo, _ := github.GetRepoNWO(r.Path) // "" for a repo not on GitHub
+		return repoNWO{Repo: r, NWO: nwo}
+	}))
+}
+
+// uniqueGitHubRepos keeps the first checkout of each GitHub repo: a worktree
+// shares its owner/repo, and counting it again doubled that repo's numbers.
+func uniqueGitHubRepos(repos []repoNWO) []repoNWO {
+	var out []repoNWO
+	seen := map[string]bool{}
+	for _, r := range repos {
+		if r.NWO != "" && !seen[r.NWO] {
+			seen[r.NWO] = true
+			out = append(out, r)
+		}
+	}
+	return out
 }

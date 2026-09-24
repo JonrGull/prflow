@@ -83,11 +83,6 @@ type attentionItem struct {
 
 type ciHour struct{ Runs, Failed int }
 
-type repoNWO struct {
-	Repo models.RepoInfo
-	NWO  string
-}
-
 // homeFetchedResult is deliberately not a flowResult: it only replaces the
 // cache and never moves the screen, so a late one is harmless, and dropping it
 // with the epoch would leave the dashboard loading until the next refresh.
@@ -142,10 +137,7 @@ func fetchHomeCmd(cfg *config.Config, flows []models.Flow, dryRun bool, gen int)
 		if err != nil {
 			return homeFetchedResult{gen: gen, err: err, at: timeNow()}
 		}
-		withNWO := uniqueGitHubRepos(parallelMap(repos, func(r models.RepoInfo) repoNWO {
-			nwo, _ := github.GetRepoNWO(r.Path) // "" for a repo not on GitHub
-			return repoNWO{Repo: r, NWO: nwo}
-		}))
+		withNWO := githubRepos(repos)
 		nwos := make([]string, len(withNWO))
 		var pairs []github.BranchPair
 		for i, r := range withNWO {
@@ -209,20 +201,6 @@ func fetchHomeCmd(cfg *config.Config, flows []models.Flow, dryRun bool, gen int)
 		}
 		return homeFetchedResult{gen: gen, data: data, at: timeNow()}
 	}
-}
-
-// uniqueGitHubRepos keeps the first checkout of each GitHub repo: a worktree
-// shares its owner/repo, and counting it again doubled that repo's numbers.
-func uniqueGitHubRepos(repos []repoNWO) []repoNWO {
-	var out []repoNWO
-	seen := map[string]bool{}
-	for _, r := range repos {
-		if r.NWO != "" && !seen[r.NWO] {
-			seen[r.NWO] = true
-			out = append(out, r)
-		}
-	}
-	return out
 }
 
 // buildHomeData turns the raw requests into the dashboard's panels.

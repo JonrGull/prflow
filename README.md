@@ -54,10 +54,10 @@ The keys that work almost everywhere:
 |-----|--------|
 | `?` | Show keyboard shortcuts for the current screen |
 | `↑/↓` | Navigate lists |
-| `←/→` | Switch columns (batch/merge/actions views) |
+| `←/→` | Switch columns (batch/merge views) |
 | `Enter` | Select/Confirm |
-| `Space` | Toggle selection / Pin run (actions) |
-| `/` | Enter filter mode (actions) |
+| `Space` | Toggle selection / Watch run (actions) |
+| `/` | Filter the Actions list; `Enter` keeps the filter, `Esc` clears it |
 | `o` | Open in browser |
 | `[` / `]` | Previous/next tab (Home is the first) |
 | `F` | Toggle fullscreen (hides the header) |
@@ -79,7 +79,9 @@ Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
   configured release chain
 - **Batch PR**: Create release PRs across multiple repos at once
 - **View/Merge PRs**: See open release PRs and merge them
-- **GitHub Actions**: Monitor workflow runs across all repos with a split-panel view — pin runs to see job/step details, auto-refreshes every 5s
+- **GitHub Actions**: Every recent workflow run across the repos in one list,
+  with the highlighted run's jobs and failing steps beside it. `Space` watches
+  a run so it stays in view while you look at others; refreshes every 5s
 - **Ticket Extraction**: Automatically extracts ticket IDs from commit messages
 - **Auto-Update**: Checks for updates on startup and prompts to install
 - **Configurable release chain**: Define the steps a release moves through in
