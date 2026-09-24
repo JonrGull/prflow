@@ -420,3 +420,83 @@ func mustRead(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+// saveAndLoad writes cfg the way the settings screen does and reads it back.
+func saveAndLoad(t *testing.T, cfg *Config) *Config {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loaded
+}
+
+// Load put a default back whenever one of these came back empty, so emptying
+// it in settings undid itself on the next launch.
+func TestEmptiedSettingsStayEmpty(t *testing.T) {
+	t.Run("repos_dir", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Paths.ReposDir = ""
+		if got := saveAndLoad(t, cfg).Paths.ReposDir; got != "" {
+			t.Errorf("repos_dir = %q after clearing it", got)
+		}
+	})
+	t.Run("every glob deleted", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Globs = nil
+		if got := saveAndLoad(t, cfg).Globs; len(got) != 0 {
+			t.Errorf("globs = %+v after deleting them all", got)
+		}
+	})
+	t.Run("every flow deleted", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.Flows = nil
+		if got := saveAndLoad(t, cfg).Flows; len(got) != 0 {
+			t.Errorf("flows = %+v after deleting them all", got)
+		}
+	})
+}
+
+// A [columns] table naming one side was merged over the default, so the other
+// side silently gained a Backend group.
+func TestPartialColumnsGetNoDefaultGroup(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	body := "[columns]\nleft = ['Web']\n\n[[globs]]\npattern = 'web/*'\ngroup = 'Web'\n"
+	if err := os.WriteFile(filepath.Join(dir, configName), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Columns.Right) != 0 {
+		t.Errorf("columns.right = %v, want it empty as the file has it", cfg.Columns.Right)
+	}
+}
+
+// What the file leaves out still gets its default.
+func TestOmittedSettingsGetDefaults(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	if err := os.WriteFile(filepath.Join(dir, configName), []byte("[tickets]\npattern = 'X-[0-9]+'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	def := DefaultConfig()
+	if cfg.Paths.ReposDir != def.Paths.ReposDir || len(cfg.Globs) != len(def.Globs) ||
+		len(cfg.Flows) != len(def.Flows) || len(cfg.Columns.Left) != len(def.Columns.Left) || len(cfg.Columns.Right) != len(def.Columns.Right) {
+		t.Errorf("a file that omits them got %+v %+v %+v %+v", cfg.Paths, cfg.Globs, cfg.Flows, cfg.Columns)
+	}
+}

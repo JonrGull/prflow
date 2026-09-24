@@ -181,6 +181,22 @@ func readConfigFile() (data []byte, fromLegacy bool, err error) {
 	return nil, false, err
 }
 
+// hasKey reports whether parsed TOML sets the key at path, even to an empty
+// value.
+func hasKey(raw map[string]any, path ...string) bool {
+	var cur any = raw
+	for _, k := range path {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return false
+		}
+		if cur, ok = m[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // Path returns the config file path
 func Path() (string, error) {
 	return configPath()
@@ -207,18 +223,27 @@ func Load() (*Config, error) {
 	}
 
 	cfg := DefaultConfig()
-	defaultGlobs := cfg.Globs
-	cfg.Globs = nil // clear so we can detect old-format configs after unmarshal
-	defaultFlows := cfg.Flows
-	cfg.Flows = nil // same, for configs written before [[flows]] existed
-	defaultReposDir := cfg.Paths.ReposDir
-	cfg.Paths.ReposDir = "" // same, so an omitted repos_dir can be spotted
+	defaults := DefaultConfig()
+	// Cleared so that only what the file sets survives the unmarshal; the
+	// defaults go back below for whatever it leaves out.
+	cfg.Globs, cfg.Flows, cfg.Paths.ReposDir, cfg.Columns = nil, nil, "", ColumnsConfig{}
 	if err := toml.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}
 
-	if cfg.Paths.ReposDir == "" {
-		cfg.Paths.ReposDir = defaultReposDir
+	// A setting the file leaves out gets its default; one it sets to empty
+	// stays empty. Defaults used to go back whenever these came back empty, so
+	// clearing repos_dir or deleting every glob undid itself on the next
+	// launch, and a [columns] table naming one side got the other side's
+	// default group. Save writes empty values out (globs = [], right = []), so
+	// an edit made in the app is always present in the file.
+	var raw map[string]any
+	_ = toml.Unmarshal(data, &raw) // the same data just parsed above
+	if !hasKey(raw, "paths", "repos_dir") {
+		cfg.Paths.ReposDir = defaults.Paths.ReposDir
+	}
+	if !hasKey(raw, "columns") {
+		cfg.Columns = defaults.Columns
 	}
 
 	// A pre-rename config names the release repo of the tool this one was
@@ -258,15 +283,15 @@ func Load() (*Config, error) {
 		cfg.Paths.BackendGlob = ""
 	}
 
-	// Apply defaults if no globs from config or migration
-	if len(cfg.Globs) == 0 {
-		cfg.Globs = defaultGlobs
+	// Apply defaults if neither the file nor the migration gave any globs
+	if !hasKey(raw, "globs") && len(cfg.Globs) == 0 {
+		cfg.Globs = defaults.Globs
 	}
 
 	// A config written before flows were configurable describes the old
 	// hardcoded pair by omission.
-	if len(cfg.Flows) == 0 {
-		cfg.Flows = defaultFlows
+	if !hasKey(raw, "flows") {
+		cfg.Flows = defaults.Flows
 	}
 
 	if err := cfg.compileRegex(); err != nil {

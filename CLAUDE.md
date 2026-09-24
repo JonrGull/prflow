@@ -190,7 +190,7 @@ from, whose releases are a different tool on a higher version line, so trusting
 it offered an "update" to the predecessor on every launch. `rename_test.go`
 covers all of it.
 
-**Backward compatibility:** A config written before `[[flows]]` existed gets the default two-step chain, the same way the globs defaults are restored — so an existing file keeps working untouched. Old configs with `frontend_glob`/`backend_glob` under `[paths]` auto-migrate to `[[globs]]` entries. The deprecated `category` field on `[[repos]]` maps to `group`.
+**Backward compatibility:** A config written before `[[flows]]` existed gets the default two-step chain, the same way the globs defaults are restored — so an existing file keeps working untouched. Defaults fill only keys the file *omits* (`hasKey` in `Load`); a key set to empty (`repos_dir = ''`, `globs = []`) stays empty, or clearing it in settings undoes itself on the next launch. Old configs with `frontend_glob`/`backend_glob` under `[paths]` auto-migrate to `[[globs]]` entries. The deprecated `category` field on `[[repos]]` maps to `group`.
 
 **Column assignment:** Each repo's `Group` (from glob or explicit entry) is checked against `columns.left`. If it matches, the repo goes in the left column; otherwise right. When a column has multiple groups, group sub-headers appear automatically.
 
