@@ -145,7 +145,11 @@ func (m Model) executeUpdateSelection() (tea.Model, tea.Cmd) {
 		m.updateAvailable = nil
 		m.screen = ScreenMainMenu
 	case 2: // Skip this version
-		if m.updateAvailable != nil {
+		if m.updateAvailable != nil && m.dryRun {
+			// --dry-run writes nothing, so the skip lasts for this session only.
+			m.config.State().SkippedVersion = m.updateAvailable.TagName
+			m.copyFeedback = "Version skipped for this session (dry run)"
+		} else if m.updateAvailable != nil {
 			if err := m.config.SetSkippedVersion(m.updateAvailable.TagName); err != nil {
 				m.copyFeedback = "✗ Could not record skipped version: " + err.Error()
 			}

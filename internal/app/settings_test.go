@@ -401,6 +401,28 @@ func TestDryRunTouchesNothing(t *testing.T) {
 		}
 	})
 
+	// "Skip this version" saved the state file, the one write the other
+	// guards here did not cover.
+	t.Run("skipping a version writes no state", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", dir)
+		t.Setenv("HOME", dir)
+
+		m := Model{screen: ScreenUpdatePrompt, config: config.DefaultConfig(), dryRun: true}
+		m.updateAvailable = &update.Release{TagName: "v99.0.0"}
+		m.updateSelection = 2
+
+		next, _ := m.executeUpdateSelection()
+		got := next.(Model)
+
+		if entries, _ := filepath.Glob(filepath.Join(dir, "*state*")); len(entries) > 0 {
+			t.Errorf("a dry run wrote %v", entries)
+		}
+		if got.config.SkippedVersion() != "v99.0.0" {
+			t.Error("the skip should still hold for this session")
+		}
+	})
+
 	// The fixtures return successful creates and merges, so the ordinary result
 	// handlers record them; without a guard they land in the real history file.
 	t.Run("simulated PRs stay out of the history file", func(t *testing.T) {
