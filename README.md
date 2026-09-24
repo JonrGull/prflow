@@ -143,7 +143,9 @@ title = 'Sprint # '                       # seeds the PR title input
 [tickets]
 # Regex pattern for extracting ticket IDs from commits. Empty disables extraction.
 # The default matches any ABC-123-style key, which also catches lookalikes such
-# as UTF-8 — set your project's own prefix to avoid that.
+# as UTF-8 — set your project's own prefix to avoid that. Letters you write match
+# either case, so PROJ-[0-9]+ also finds proj-12 in a branch name; [A-Z] means
+# upper case only. Start the pattern with (?i) to make all of it case-insensitive.
 pattern = "PROJ-[0-9]+"
 # Linear organization slug (for PR body links)
 linear_org = "my-org"

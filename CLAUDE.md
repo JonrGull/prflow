@@ -67,7 +67,7 @@ MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confir
 
 - **Idempotent PRs:** `CreateOrUpdatePR` creates if missing, updates if exists
 - **Parallel discovery:** Repos fetched concurrently, PRs processed sequentially
-- **Ticket extraction:** `tickets.pattern` pulls ticket IDs out of commit messages; the default matches any `ABC-123`-style key
+- **Ticket extraction:** `tickets.pattern` pulls ticket IDs out of commit messages; the default matches any `ABC-123`-style key. Letters typed literally match either case and classes like `[A-Z]` match only what they say (`compileTicketPattern`), and a match cut out of a longer word is skipped (`git.findTickets`). Highlight tickets with `git.HighlightTickets`, not the raw regex, so the screen marks what goes into the PR
 - **Release steps are config, not code:** `[[flows]]` lists the chain (`head` →
   `base`, `base = "@default"` for the repo's own default branch). There used to
   be a two-value `PrType` enum with `"dev"`, `"staging"` and `"main"` baked into

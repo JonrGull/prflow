@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/JonrGull/prflow/internal/models"
 
@@ -12,20 +14,59 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
+// findTickets returns where ticketRegex matches in text, skipping any match
+// cut out of a longer word: MATT-12 is not ATT-12, and PROJ-12abc is not
+// PROJ-12. A match edge only counts as cut when a letter or digit sits on
+// both sides of it, so a pattern starting with # still matches in "see #12".
+func findTickets(text string, ticketRegex *regexp.Regexp) [][]int {
+	if ticketRegex == nil {
+		return nil
+	}
+	var spans [][]int
+	for _, loc := range ticketRegex.FindAllStringIndex(text, -1) {
+		if loc[0] == loc[1] {
+			continue
+		}
+		before, _ := utf8.DecodeLastRuneInString(text[:loc[0]])
+		first, _ := utf8.DecodeRuneInString(text[loc[0]:])
+		last, _ := utf8.DecodeLastRuneInString(text[:loc[1]])
+		after, _ := utf8.DecodeRuneInString(text[loc[1]:])
+		if (isWordRune(before) && isWordRune(first)) || (isWordRune(last) && isWordRune(after)) {
+			continue
+		}
+		spans = append(spans, loc)
+	}
+	return spans
+}
+
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// HighlightTickets returns text with style applied to each ticket ID, using
+// the same rules as ExtractTickets so the screen marks exactly what goes into
+// the PR.
+func HighlightTickets(text string, ticketRegex *regexp.Regexp, style func(string) string) string {
+	var b strings.Builder
+	prev := 0
+	for _, span := range findTickets(text, ticketRegex) {
+		b.WriteString(text[prev:span[0]])
+		b.WriteString(style(text[span[0]:span[1]]))
+		prev = span[1]
+	}
+	b.WriteString(text[prev:])
+	return b.String()
+}
+
 // ExtractTickets extracts ticket IDs from text using the given compiled regex
 func ExtractTickets(text string, ticketRegex *regexp.Regexp) []string {
 	if ticketRegex == nil {
 		return nil
 	}
 
-	matches := ticketRegex.FindAllStringSubmatch(text, -1)
-
 	ticketSet := make(map[string]bool)
-	for _, match := range matches {
-		if len(match) > 1 {
-			ticket := strings.ToUpper(match[1])
-			ticketSet[ticket] = true
-		}
+	for _, span := range findTickets(text, ticketRegex) {
+		ticketSet[strings.ToUpper(text[span[0]:span[1]])] = true
 	}
 
 	// Convert to sorted slice

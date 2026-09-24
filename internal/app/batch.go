@@ -955,12 +955,7 @@ func (m Model) renderCommitsPreview(repoIdx int, width int) string {
 					msg = msg[:maxMsgLen-3] + "..."
 				}
 				// Highlight tickets in message
-				styledMsg := msg
-				if ticketRegex != nil {
-					styledMsg = ticketRegex.ReplaceAllStringFunc(msg, func(match string) string {
-						return ticketStyle.Render(match)
-					})
-				}
+				styledMsg := git.HighlightTickets(msg, ticketRegex, func(t string) string { return ticketStyle.Render(t) })
 				lines = append(lines, fmt.Sprintf("  %s %s", hashStyle.Render(commit.Hash), msgStyle.Render(styledMsg)))
 			}
 		}

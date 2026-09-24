@@ -67,17 +67,16 @@ func TestDefaultsCarryNoOrganisationSpecificValues(t *testing.T) {
 			t.Errorf("default pattern does not match %q", id)
 		}
 	}
-	// Case-insensitively, by design — a commit may write the key in lower case.
-	if !re.MatchString("fixes acme-1234") {
-		t.Error("default pattern should match a lowercase key")
-	}
 	// The known cost of a prefix-agnostic default, recorded rather than
-	// discovered: technical tokens of the same shape match too. Narrowing the
-	// pattern to a real project prefix is the fix, and the docs say so.
+	// discovered: upper-case tokens of the same shape still match. Narrowing
+	// the pattern to a real project prefix is the fix, and the docs say so.
 	if !re.MatchString("switch to UTF-8") {
 		t.Log("note: the generic default also matches lookalikes like UTF-8")
 	}
-	for _, notATicket := range []string{"no ticket here", "1234", "v1.2.3"} {
+	// Lower-case lookalikes no longer do: [A-Z] means upper case. The whole
+	// pattern used to be case-insensitive, which put utf-8, node-18 and
+	// sha-256 into PR bodies as tickets.
+	for _, notATicket := range []string{"no ticket here", "1234", "v1.2.3", "utf-8", "node-18", "sha-256"} {
 		if re.MatchString(notATicket) {
 			t.Errorf("default pattern matched %q", notATicket)
 		}
@@ -177,4 +176,30 @@ func TestValidateFlows(t *testing.T) {
 			t.Errorf("expected no diagnostics, got %v", diags)
 		}
 	})
+}
+
+// Letters typed into the pattern match either case, so a real prefix still
+// finds the key in a lower-case branch name (Linear's jon/att-123-fix). A
+// class matches only what it says, and (?i) opts the whole pattern in.
+func TestTicketPatternCase(t *testing.T) {
+	cases := []struct {
+		pattern, text string
+		want          bool
+	}{
+		{"ATT-[0-9]+", "ATT-123", true},
+		{"ATT-[0-9]+", "merge jon/att-123-fix", true},
+		{"[A-Z][A-Z0-9]+-[0-9]+", "ACME-1234", true},
+		{"[A-Z][A-Z0-9]+-[0-9]+", "fixes acme-1234", false},
+		{"[A-Z][A-Z0-9]+-[0-9]+", "bump node-18", false},
+		{"(?i)[A-Z][A-Z0-9]+-[0-9]+", "bump node-18", true},
+	}
+	for _, tc := range cases {
+		cfg := DefaultConfig()
+		if err := cfg.SetTicketPattern(tc.pattern); err != nil {
+			t.Fatalf("%s: %v", tc.pattern, err)
+		}
+		if got := cfg.TicketRegex().MatchString(tc.text); got != tc.want {
+			t.Errorf("%s on %q: matched = %v, want %v", tc.pattern, tc.text, got, tc.want)
+		}
+	}
 }

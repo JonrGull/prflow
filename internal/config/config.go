@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"time"
 
@@ -289,12 +290,36 @@ func (c *Config) compileRegex() error {
 		c.ticketRegex = nil
 		return nil
 	}
-	re, err := regexp.Compile("(?i)(" + c.Tickets.Pattern + ")")
+	re, err := compileTicketPattern(c.Tickets.Pattern)
 	if err != nil {
 		return fmt.Errorf("invalid tickets.pattern %q: %w", c.Tickets.Pattern, err)
 	}
 	c.ticketRegex = re
 	return nil
+}
+
+// compileTicketPattern makes letters written literally match either case,
+// while a class like [A-Z] matches only what it says. So ATT-[0-9]+ still
+// finds att-123 in a lowercase branch name, but the generic default no longer
+// turns utf-8 or node-18 into tickets. The whole pattern used to be compiled
+// case-insensitively, which made [A-Z] mean [A-Za-z]. (?i) in the pattern
+// still makes all of it case-insensitive.
+func compileTicketPattern(pattern string) (*regexp.Regexp, error) {
+	tree, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return nil, err
+	}
+	foldLiterals(tree)
+	return regexp.Compile(tree.String())
+}
+
+func foldLiterals(re *syntax.Regexp) {
+	if re.Op == syntax.OpLiteral {
+		re.Flags |= syntax.FoldCase
+	}
+	for _, sub := range re.Sub {
+		foldLiterals(sub)
+	}
 }
 
 // SetTicketPattern updates the ticket pattern and recompiles it.

@@ -607,12 +607,7 @@ func (m Model) renderCommitReviewWithHeight(availableHeight int) string {
 
 			// Highlight tickets in yellow within the message
 			msg := commit.Message
-			styledMsg := msg
-			if ticketRegex != nil {
-				styledMsg = ticketRegex.ReplaceAllStringFunc(msg, func(match string) string {
-					return ticketStyle.Render(match)
-				})
-			}
+			styledMsg := git.HighlightTickets(msg, ticketRegex, func(t string) string { return ticketStyle.Render(t) })
 
 			// Wrap message to fit column, with indent
 			indent := "    "
