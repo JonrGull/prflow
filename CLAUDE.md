@@ -77,6 +77,7 @@ MainMenu → PrTypeSelect → Loading → CommitReview → TitleInput → Confir
   menu offers `chainBranches()`, and `branchColor` colours a branch by its
   position in the chain rather than by matching its name
 - **Dry-run mode:** Returns fake data with delays for testing without GitHub
+- **Self-update verifies before it replaces:** `update.install` downloads the binary and the release's `SHA256SUMS` into a private temp dir and installs only on a match. A release without `SHA256SUMS` is refused, so `release.yml` must keep publishing it
 
 **Async Message Pattern:** Commands return `tea.Cmd` functions that emit typed result messages (e.g., `fetchCommitsResult`, `batchRepoResult`). New async operations need: (1) a result type, (2) a command function, (3) a handler — all three in the screen's own file — plus (4) a case in `update.go`'s `dispatch`, which is the only part that is shared.
 

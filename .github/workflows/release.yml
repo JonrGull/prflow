@@ -80,7 +80,7 @@ jobs:
             mv "$dir$name" "release/$name"
           done
           chmod +x release/*
-          # Published so a download can be checked against what was built.
+          # Self-update refuses a release without this, so don't drop it.
           (cd release && sha256sum prflow-* > SHA256SUMS)
 
       - name: Create release

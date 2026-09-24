@@ -1,6 +1,13 @@
 package update
 
-import "testing"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 // compareVersions replaced a lexical string comparison that silently broke
 // self-update. "1.0.10" sorts before "1.0.9" as a string, and the release
@@ -64,5 +71,85 @@ func TestNormalizeVersion(t *testing.T) {
 		if got := normalizeVersion(in); got != want {
 			t.Errorf("normalizeVersion(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// fakeRelease stands in for gh: it writes the binary and, unless sums is nil,
+// a SHA256SUMS file into the download dir.
+func fakeRelease(t *testing.T, binary []byte, sums func(name string) string) {
+	t.Helper()
+	orig := download
+	t.Cleanup(func() { download = orig })
+	download = func(tag, repo, dir string, assets ...string) error {
+		name := getBinaryAssetName()
+		if err := os.WriteFile(filepath.Join(dir, name), binary, 0o644); err != nil {
+			return err
+		}
+		if sums == nil {
+			return nil
+		}
+		return os.WriteFile(filepath.Join(dir, checksumsAsset), []byte(sums(name)), 0o644)
+	}
+}
+
+func sumLine(data []byte, name string) string {
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:]) + "  " + name + "\n"
+}
+
+// installed is the file install replaces, standing in for the running binary.
+func installed(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "prflow")
+	if err := os.WriteFile(p, []byte("working binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestInstallVerifiesTheChecksum(t *testing.T) {
+	good := []byte("the new binary")
+	other := "0000000000000000000000000000000000000000000000000000000000000000  prflow-other-arch\n"
+
+	cases := []struct {
+		name    string
+		sums    func(name string) string
+		wantErr string // "" means installed
+	}{
+		{"matching", func(n string) string { return other + sumLine(good, n) }, ""},
+		{"binary-mode marker", func(n string) string { return strings.Replace(sumLine(good, n), "  ", " *", 1) }, ""},
+		// A truncated or corrupted download.
+		{"mismatch", func(n string) string { return sumLine([]byte("something else"), n) }, "checksum mismatch"},
+		{"no entry for this platform", func(string) string { return other }, "no entry"},
+		// Fail closed: a release without SHA256SUMS can't be verified.
+		{"no SHA256SUMS", nil, "can't be verified"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeRelease(t, good, tc.sums)
+			target := installed(t)
+
+			err := install("v9.9.9", "owner/repo", target)
+			got, _ := os.ReadFile(target)
+
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("install: %v", err)
+				}
+				if string(got) != string(good) {
+					t.Errorf("binary = %q, want the new one", got)
+				}
+				if info, _ := os.Stat(target); info.Mode().Perm()&0o100 == 0 {
+					t.Errorf("mode = %v, want executable", info.Mode())
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("err = %v, want one containing %q", err, tc.wantErr)
+			}
+			if string(got) != "working binary" {
+				t.Errorf("binary was replaced with %q despite the failed check", got)
+			}
+		})
 	}
 }
