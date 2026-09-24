@@ -97,3 +97,23 @@ func TestPullSummaryShowsFailuresAndTheCut(t *testing.T) {
 		t.Error("the cut was silent")
 	}
 }
+
+// Session history drew every entry, so after a big batch it ran off the
+// screen and the cursor went with it.
+func TestSessionHistoryCursorStaysOnScreen(t *testing.T) {
+	m := sized(staleModel(ScreenSessionHistory))
+	for i := 0; i < 30; i++ {
+		m.sessionPRs = append(m.sessionPRs, sessionPR{repoName: fmt.Sprintf("G/repo-%02d", i),
+			url: fmt.Sprintf("https://example.test/pull/%d", 100+i), prType: "dev → staging", createdAt: time.Now()})
+	}
+	for i := range m.sessionPRs {
+		v := m.View()
+		if want := fmt.Sprintf("/pull/%d", 100+i); !strings.Contains(v, want) {
+			t.Fatalf("cursor on %d: %s is not on screen", i, want)
+		}
+		if h := strings.Count(v, "\n") + 1; h > m.height {
+			t.Fatalf("view is %d rows on a %d-row terminal", h, m.height)
+		}
+		m = send(t, m, keyDown)
+	}
+}

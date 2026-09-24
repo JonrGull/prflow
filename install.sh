@@ -37,11 +37,29 @@ ASSET="${BINARY}-${OS}-${ARCH}"
 URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
 echo "Downloading $ASSET $VERSION..."
 
-curl -fsSL "$URL" -o "/tmp/$BINARY"
-chmod +x "/tmp/$BINARY"
+# A private directory, not a fixed name in /tmp that another user could
+# create first.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+curl -fsSL "$URL" -o "$TMP/$ASSET"
+curl -fsSL "https://github.com/$REPO/releases/download/$VERSION/SHA256SUMS" -o "$TMP/SHA256SUMS"
+
+# Verify before installing, as self-update does.
+EXPECTED=$(grep " \*\?$ASSET\$" "$TMP/SHA256SUMS" | cut -d' ' -f1)
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL=$(sha256sum "$TMP/$ASSET" | cut -d' ' -f1)
+else
+  ACTUAL=$(shasum -a 256 "$TMP/$ASSET" | cut -d' ' -f1)
+fi
+if [ -z "$EXPECTED" ] || [ "$EXPECTED" != "$ACTUAL" ]; then
+  echo "Checksum mismatch for $ASSET; not installing it"
+  exit 1
+fi
 
 # Install
-mv "/tmp/$BINARY" "$INSTALL_DIR/$BINARY"
+chmod +x "$TMP/$ASSET"
+mv "$TMP/$ASSET" "$INSTALL_DIR/$BINARY"
 
 echo "Installed $BINARY $VERSION to $INSTALL_DIR/$BINARY"
 

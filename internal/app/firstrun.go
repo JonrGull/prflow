@@ -58,7 +58,7 @@ type firstRunPreview struct {
 // the screen could never be accepted.
 func checkFirstRunPathCmd(cfg *config.Config, path string) tea.Cmd {
 	return func() tea.Msg {
-		dir := expandTilde(path)
+		dir := config.ExpandTilde(path)
 		repos, err := git.FindRepos(dir, cfg.GlobEntries(), cfg.ExplicitRepos())
 
 		var detected []config.GlobEntry
@@ -150,19 +150,6 @@ func columnsFor(globs []config.GlobEntry) config.ColumnsConfig {
 		}
 	}
 	return cols
-}
-
-// expandTilde mirrors the expansion the config does, so the preview scans the
-// same directory that will actually be used once saved.
-func expandTilde(path string) string {
-	if !strings.HasPrefix(path, "~/") {
-		return path
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return path
-	}
-	return filepath.Join(home, path[2:])
 }
 
 type firstRunPreviewResult struct {

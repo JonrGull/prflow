@@ -521,13 +521,17 @@ func (c *Config) LinearAPIKey() string {
 	return ""
 }
 
-func expandTilde(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
+func expandTilde(path string) string { return ExpandTilde(path) }
+
+// ExpandTilde expands a leading ~ to the home directory. A bare ~ used to be
+// left as it was, so repos_dir = '~' pointed at a directory named "~".
+func ExpandTilde(path string) string {
+	if path != "~" && !strings.HasPrefix(path, "~/") {
+		return path
 	}
-	return path
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(home, strings.TrimPrefix(path[1:], "/"))
 }

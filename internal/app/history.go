@@ -189,16 +189,27 @@ func (m Model) handleSessionHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) renderSessionHistory() string {
+// historyEntryLines is how tall one entry is: header, URL and a gap.
+const historyEntryLines = 3
+
+func (m Model) renderSessionHistory(availableHeight int) string {
 	var lines []string
 	lines = append(lines, "")
+
+	// Only the entries that fit, centred on the cursor. Every entry used to be
+	// drawn, so after a big batch the list ran off the screen and the cursor
+	// with it. The budget leaves the box padding, the title and blank line
+	// above the list, and the "showing" line under it.
+	visible := max((availableHeight-2*outerBoxPadding-3)/historyEntryLines, 1)
+	first, last := settingsWindow(m.historyIndex, len(m.sessionPRs), visible)
 
 	if len(m.sessionPRs) == 0 {
 		dimStyle := ui.Dim
 		lines = append(lines, dimStyle.Render("  No PRs created this session"))
 		lines = append(lines, "")
 	} else {
-		for i, pr := range m.sessionPRs {
+		for i := first; i < last; i++ {
+			pr := m.sessionPRs[i]
 			isSelected := i == m.historyIndex
 			arrow := "  "
 			if isSelected {
@@ -233,6 +244,9 @@ func (m Model) renderSessionHistory() string {
 			lines = append(lines, line)
 			lines = append(lines, "   "+urlStyle.Render(pr.url))
 			lines = append(lines, "")
+		}
+		if first > 0 || last < len(m.sessionPRs) {
+			lines = append(lines, ui.Dim.Render(fmt.Sprintf("  showing %d–%d of %d", first+1, last, len(m.sessionPRs))))
 		}
 	}
 

@@ -525,3 +525,22 @@ func TestBadTicketPatternDoesNotStopTheApp(t *testing.T) {
 		t.Error("no diagnostic says why tickets stopped")
 	}
 }
+
+// A bare ~ was left as it was, so repos_dir = '~' pointed at a directory
+// named "~" in whatever directory prflow was started from.
+func TestExpandTildeHandlesABareTilde(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home directory")
+	}
+	for in, want := range map[string]string{
+		"~":          home,
+		"~/Projects": filepath.Join(home, "Projects"),
+		"/abs/path":  "/abs/path",
+		"~user/x":    "~user/x", // another user's home is not ours to guess
+	} {
+		if got := ExpandTilde(in); got != want {
+			t.Errorf("ExpandTilde(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -86,8 +86,9 @@ func TestScreenRenders(t *testing.T) {
 // actually stands — screens that have been made to fit, and are held to it.
 // Moving a screen into this list is the way to pay the debt down one at a time.
 var heightAwareScreens = map[Screen]bool{
-	ScreenSettings: true,
-	ScreenListEdit: true,
+	ScreenSettings:       true,
+	ScreenListEdit:       true,
+	ScreenSessionHistory: true,
 }
 
 // Nothing may be wider than the terminal.

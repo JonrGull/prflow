@@ -362,7 +362,7 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 	case ScreenUpdating:
 		return m.renderUpdating()
 	case ScreenSessionHistory:
-		return m.renderSessionHistory()
+		return m.renderSessionHistory(availableHeight)
 	case ScreenPullBranchSelect:
 		return m.renderPullBranchSelect()
 	case ScreenPullProgress:
