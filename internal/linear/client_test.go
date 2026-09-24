@@ -99,3 +99,23 @@ func TestQATaggingSubscribesTheQAPerson(t *testing.T) {
 	}
 	t.Error("issueSubscribe was never called")
 }
+
+// Titles were fetched as one query of aliased issue(id:) lookups. issue is
+// non-null, so one ticket that doesn't exist nulled the whole response
+// (checked against the live API) and every title disappeared.
+func TestTicketTitlesSurviveAMissingTicket(t *testing.T) {
+	seen := fakeLinear(t, map[string]string{
+		// INT-1 was not asked for: kept out even if a filter lets it through.
+		"issues(": `{"t0":{"nodes":[{"identifier":"ATT-1","title":"Fix login"},{"identifier":"INT-1","title":"Other"}]}}`,
+	})
+
+	titles := FetchTicketTitles("key", []string{"ATT-1", "ATT-999999", "#12"})
+
+	if titles["ATT-1"] != "Fix login" || len(titles) != 1 {
+		t.Errorf("titles = %v, want just ATT-1's", titles)
+	}
+	b, _ := json.Marshal((*seen)[0].Variables)
+	if !strings.Contains(string(b), `"ATT"`) || !strings.Contains(string(b), "999999") || strings.Contains(string(b), "#12") {
+		t.Errorf("filter = %s, want both ATT keys and not the non-Linear #12", b)
+	}
+}

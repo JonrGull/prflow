@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -175,40 +176,81 @@ func SubscribeUserToIssue(apiKey, issueID, userID string) error {
 
 // FetchTicketTitles batch-queries Linear for issue titles by identifier.
 // Returns map like {"PROJ-1234": "Fix login redirect"}. Missing issues are omitted.
+//
+// It runs one issues() filter per team key, aliased into a single request.
+// The lookup it used, issue(id:), is non-null, so one ticket that did not
+// exist nulled the whole response and every title disappeared. A single
+// filter with an or of team+number clauses does not work either: Linear
+// ignores the team inside or, so it matches the number in every team.
 func FetchTicketTitles(apiKey string, identifiers []string) map[string]string {
-	if len(identifiers) == 0 {
+	wanted := map[string]bool{}
+	numbers := map[string][]int{} // team key -> issue numbers
+	var keys []string
+	for _, id := range identifiers {
+		key, number, ok := splitIdentifier(id)
+		if !ok {
+			continue // not a Linear key, e.g. a #12 from a custom pattern
+		}
+		if _, seen := numbers[key]; !seen {
+			keys = append(keys, key)
+		}
+		numbers[key] = append(numbers[key], number)
+		wanted[fmt.Sprintf("%s-%d", key, number)] = true
+	}
+	if len(keys) == 0 {
 		return nil
 	}
 
-	// Build a single query with aliased issue() calls: { i0: issue(id:"PROJ-1234") { ... } i1: ... }
-	var b strings.Builder
-	b.WriteString("{ ")
-	for i, id := range identifiers {
-		fmt.Fprintf(&b, "i%d: issue(id: %q) { identifier title } ", i, strings.ToUpper(id))
+	var params, fields []string
+	vars := map[string]any{}
+	for i, key := range keys {
+		params = append(params, fmt.Sprintf("$k%d: String!, $n%d: [Float!]!", i, i))
+		fields = append(fields, fmt.Sprintf(
+			"t%d: issues(first: %d, filter: { team: { key: { eq: $k%d } }, number: { in: $n%d } }) { nodes { identifier title } }",
+			i, min(len(numbers[key]), 250), i, i))
+		vars[fmt.Sprintf("k%d", i)] = key
+		vars[fmt.Sprintf("n%d", i)] = numbers[key]
 	}
-	b.WriteString("}")
-
-	resp, err := doQuery(apiKey, graphqlRequest{Query: b.String()})
+	resp, err := doQuery(apiKey, graphqlRequest{
+		Query:     "query(" + strings.Join(params, ", ") + ") { " + strings.Join(fields, " ") + " }",
+		Variables: vars,
+	})
 	if err != nil {
 		return nil
 	}
 
-	// Response is { "i0": { "identifier": "PROJ-1234", "title": "..." }, "i1": ... }
-	var data map[string]*struct {
-		Identifier string `json:"identifier"`
-		Title      string `json:"title"`
+	var data map[string]struct {
+		Nodes []struct {
+			Identifier string `json:"identifier"`
+			Title      string `json:"title"`
+		} `json:"nodes"`
 	}
 	if err := json.Unmarshal(resp.Data, &data); err != nil {
 		return nil
 	}
 
-	titles := make(map[string]string, len(data))
-	for _, node := range data {
-		if node != nil {
-			titles[node.Identifier] = node.Title
+	titles := map[string]string{}
+	for _, team := range data {
+		for _, node := range team.Nodes {
+			if wanted[node.Identifier] {
+				titles[node.Identifier] = node.Title
+			}
 		}
 	}
 	return titles
+}
+
+// splitIdentifier splits "ATT-123" into its team key and number.
+func splitIdentifier(id string) (key string, number int, ok bool) {
+	i := strings.LastIndexByte(id, '-')
+	if i <= 0 {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(id[i+1:])
+	if err != nil || n <= 0 {
+		return "", 0, false
+	}
+	return strings.ToUpper(id[:i]), n, true
 }
 
 // TagTicketsForQA posts a QA comment on each ticket and subscribes the QA person
