@@ -381,7 +381,16 @@ func TestPollsAreConditionalRequests(t *testing.T) {
 // repos are searched a few at a time, and every group's PRs come back.
 func TestSearchAllOpenPRsSearchesInGroups(t *testing.T) {
 	node := `{"data":{"search":{"pageInfo":{"hasNextPage":false},"nodes":[{"number":1,"repository":{"nameWithOwner":"acme/a"}}]}}}`
+	// One search on its own first: the grouped ones below run at once and
+	// write the fake's argument file over each other.
 	args := fakeGh(t, node, 0)
+	if _, err := searchOpenPRs([]string{"acme/a"}, prFieldsAll); err != nil {
+		t.Fatal(err)
+	}
+	if a := args(); !strings.Contains(a, "first: 25") {
+		t.Error("the search does not ask for pages of 25")
+	}
+
 	nwos := make([]string, searchRepoChunk+1)
 	for i := range nwos {
 		nwos[i] = fmt.Sprintf("acme/r%d", i)
@@ -394,8 +403,5 @@ func TestSearchAllOpenPRsSearchesInGroups(t *testing.T) {
 	// and merged.
 	if len(prs["acme/a"]) != 2 {
 		t.Errorf("got %d PRs, want one from each of the 2 searches", len(prs["acme/a"]))
-	}
-	if a := args(); !strings.Contains(a, "first: 25") {
-		t.Error("the search does not ask for pages of 25")
 	}
 }
