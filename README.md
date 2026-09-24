@@ -6,7 +6,7 @@ Define the chain a release moves through — `dev → staging → main`, or what
 your team actually uses — and prflow opens, tracks and merges the PRs for each
 step across every repo at once.
 
-https://github.com/user-attachments/assets/6659fe81-e72c-4989-9f92-9b6df784bc4f
+https://github.com/user-attachments/assets/861a6098-118a-4487-87bf-0681d3ef117c
 
 *Recorded with `--dry-run`, so every repo, commit and PR in it is fixture data.
 Re-record it with [`docs/demo/make.sh`](docs/demo/).*
