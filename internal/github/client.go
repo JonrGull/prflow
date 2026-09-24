@@ -224,6 +224,7 @@ const prFieldsDashboard = `
 		} } } } }
 	}
 	latestReviews(last: 10) { nodes { state } }
+	reviewDecision
 `
 
 // searchInGroups fetches all open PRs across multiple repos, searching a few
@@ -362,7 +363,10 @@ type searchPRNode struct {
 	Title   string `json:"title"`
 	State   string `json:"state"`
 	IsDraft bool   `json:"isDraft"`
-	Author  struct {
+	// ReviewDecision is REVIEW_REQUIRED, CHANGES_REQUESTED or APPROVED, and
+	// empty where no review is required.
+	ReviewDecision string `json:"reviewDecision"`
+	Author         struct {
 		Login string `json:"login"`
 	} `json:"author"`
 	HeadRefName       string `json:"headRefName"`
@@ -483,6 +487,7 @@ func (n searchPRNode) toGhPr() models.GhPr {
 		BaseBranch: n.BaseRefName,
 
 		IsCrossRepository: n.IsCrossRepository,
+		ReviewDecision:    n.ReviewDecision,
 	}
 	pr.Author.Login = n.Author.Login
 

@@ -75,6 +75,10 @@ Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
   step of the chain, open release PRs and which are ready to merge, what needs
   attention (failing CI, conflicts, changes requested, commits with no PR), and
   recent Actions runs. It loads in the background and refreshes with `r`
+- **Trunk-based mode**: for teams working straight on `main`. Turn on
+  *Trunk-based* in settings (or set `branching = "trunk"`): the release-chain
+  screens go, and Home covers every open PR into each repo's default branch,
+  with failing CI, conflicts, requested changes and required reviews
 - **Single PR**: Create a release PR for one repo, for any step of your
   configured release chain
 - **Batch PR**: Create release PRs across multiple repos at once
@@ -111,6 +115,10 @@ shows what it found before saving:
 - **macOS**: `~/Library/Application Support/prflow.toml`
 
 ```toml
+# "trunk" for trunk-based work: hides the release-chain screens and keeps
+# [[flows]] unused. Leave it out for the release chain.
+# branching = "trunk"
+
 [paths]
 # Parent directory containing your repositories
 repos_dir = "~/Projects/my-org"

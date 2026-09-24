@@ -14,6 +14,19 @@ import (
 // brand — so the line never runs off the edge, and the dry-run badge is kept
 // until almost nothing else is.
 
+// The tabs, by identity. A tab's ID indexes TabNames, tabShortNames and
+// TabColors whichever tabs are shown; the order shown is the caller's list.
+const (
+	TabSingle = iota
+	TabBatch
+	TabRelease
+	TabAllPRs
+	TabActions
+)
+
+// AllTabs is every tab, in the order the release chain shows them.
+var AllTabs = []int{TabSingle, TabBatch, TabRelease, TabAllPRs, TabActions}
+
 // TabNames are the labels for the top-level navigation tabs.
 var TabNames = []string{"Single", "Batch", "Release PRs", "All Open PRs", "Actions"}
 
@@ -29,7 +42,8 @@ const HomeTab = -1
 
 // HeaderInfo is what the header shows around the tabs.
 type HeaderInfo struct {
-	ActiveTab int    // HomeTab (-1) for the dashboard, else an index into TabNames
+	ActiveTab int    // HomeTab (-1) for the dashboard, else a tab ID
+	Tabs      []int  // the tab IDs to show, in order; nil shows AllTabs
 	DryRun    bool   // shows the DRY RUN badge
 	Meta      string // e.g. "gh: jon · v1.0.9"; the first thing dropped
 }
@@ -55,7 +69,11 @@ func RenderHeader(info HeaderInfo, width int) string {
 		}
 		return strings.Join(kept, "  ")
 	}
-	long, short := renderTabs(TabNames, info.ActiveTab), renderTabs(tabShortNames, info.ActiveTab)
+	tabs := info.Tabs
+	if tabs == nil {
+		tabs = AllTabs
+	}
+	long, short := renderTabs(TabNames, tabs, info.ActiveTab), renderTabs(tabShortNames, tabs, info.ActiveTab)
 	home := lipgloss.NewStyle().Padding(0, 1).Foreground(ColorDarkGray).Render("Home")
 	if info.ActiveTab == HomeTab {
 		home = lipgloss.NewStyle().Padding(0, 1).Background(ColorLightGreen).Foreground(ColorOnAccent).Bold(true).Render("Home")
@@ -82,27 +100,31 @@ func RenderHeader(info HeaderInfo, width int) string {
 	}
 	if line == "" {
 		// Narrower than even the short tabs: the plain names, cut to fit.
-		line = Dim.Render(truncateToWidth(strings.Join(tabShortNames, " "), width))
+		var names []string
+		for _, id := range tabs {
+			names = append(names, tabShortNames[id])
+		}
+		line = Dim.Render(truncateToWidth(strings.Join(names, " "), width))
 	}
 
 	rule := lipgloss.NewStyle().Foreground(ColorBorder).Render(strings.Repeat("─", max(width, 0)))
 	return line + "\n" + rule
 }
 
-// renderTabs draws the tab labels: the active one filled with its accent, the
-// rest dim.
-func renderTabs(names []string, active int) string {
-	tabs := make([]string, len(names))
-	for i, name := range names {
+// renderTabs draws the given tabs' labels: the active one filled with its
+// accent, the rest dim.
+func renderTabs(names []string, tabs []int, active int) string {
+	out := make([]string, len(tabs))
+	for i, id := range tabs {
 		style := lipgloss.NewStyle().Padding(0, 1)
-		if i == active {
-			style = style.Background(TabColors[i]).Foreground(ColorOnAccent).Bold(true)
+		if id == active {
+			style = style.Background(TabColors[id]).Foreground(ColorOnAccent).Bold(true)
 		} else {
 			style = style.Foreground(ColorDarkGray)
 		}
-		tabs[i] = style.Render(name)
+		out[i] = style.Render(names[id])
 	}
-	return strings.Join(tabs, "")
+	return strings.Join(out, "")
 }
 
 // spread places left and right at either end of width, with at least two

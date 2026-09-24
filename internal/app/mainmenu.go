@@ -18,7 +18,8 @@ import (
 // It replaced a menu beside a panel of static text, which described what each
 // entry did and said nothing about the repos themselves.
 
-// startItems are the Start panel's entries, in menuIndex order.
+// startItems describe each tab's Start row, indexed by tab ID. The card lists
+// only the visible tabs, so a row is not a tab ID: see startRow.
 var startItems = []struct {
 	name, desc string
 	color      lipgloss.TerminalColor
@@ -31,7 +32,7 @@ var startItems = []struct {
 }
 
 func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	last := len(startItems) - 1
+	last := len(m.visibleTabs()) - 1
 	switch msg.String() {
 	case "q":
 		m.shouldQuit = true
@@ -48,10 +49,16 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.menuIndex = 0 // Wrap to top
 		}
-	case "enter", "1", "2", "3", "4", "5":
-		if idx, ok := numKeyIndex(msg.String(), len(startItems)); ok {
-			m.menuIndex = idx
+	case "enter":
+		return m.selectMainMenuItem()
+	case "1", "2", "3", "4", "5":
+		// A digit past the last row does nothing; it used to open the row
+		// already selected.
+		idx, ok := numKeyIndex(msg.String(), last+1)
+		if !ok {
+			return m, nil
 		}
+		m.menuIndex = idx
 		return m.selectMainMenuItem()
 	case "r":
 		// An explicit refresh should also pick up repos added on disk.
@@ -59,8 +66,7 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd := m.startHomeFetch()
 		return m, cmd
 	case "a":
-		m.menuIndex = 4
-		return m.selectMainMenuItem()
+		return m.openTab(ui.TabActions)
 	case "u":
 		// Manual update check. Blocked under --dry-run, which promises no
 		// network and no changes: a local build reports Version "dev", which
@@ -83,7 +89,10 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = ScreenSessionHistory
 		m.historyIndex = 0
 	case "p":
-		// Pull all repos
+		if m.trunkBased() {
+			// Every repo's default branch: there is no chain to choose from.
+			return m.pullDefaultBranches()
+		}
 		m.screen = ScreenPullBranchSelect
 		m.menuIndex = 0
 	case "o":
@@ -94,7 +103,17 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// selectMainMenuItem opens the tab on the selected Start row.
 func (m Model) selectMainMenuItem() (tea.Model, tea.Cmd) {
+	tabs := m.visibleTabs()
+	if m.menuIndex < 0 || m.menuIndex >= len(tabs) {
+		return m, nil
+	}
+	return m.openTab(tabs[m.menuIndex])
+}
+
+// openTab starts a tab's screen from scratch, fetching what it shows.
+func (m Model) openTab(tab int) (tea.Model, tea.Cmd) {
 	// Check for auth error before any GitHub operation. The check runs again
 	// each time, so logging in from another terminal takes effect without a
 	// restart.
@@ -104,30 +123,26 @@ func (m Model) selectMainMenuItem() (tea.Model, tea.Cmd) {
 		return m, authCheckCmd()
 	}
 
-	// Sync activeTab with menu selection (for tabs 0-4)
-	if m.menuIndex >= 0 && m.menuIndex <= 4 {
-		m.activeTab = m.menuIndex
-	}
-
-	switch m.menuIndex {
-	case 0: // Single Repo
+	m.activeTab = tab
+	switch tab {
+	case ui.TabSingle:
 		mode := ModeSingle
 		m.mode = &mode
 		m.screen = ScreenLoading
 		m.loadingMessage = "Detecting repository..."
 		return m, loadCurrentRepoCmd(m.flows())
-	case 1: // Batch Mode
+	case ui.TabBatch:
 		mode := ModeBatch
 		m.mode = &mode
 		m.screen = ScreenPrTypeSelect
 		m.menuIndex = 0
-	case 2: // View Release PRs
+	case ui.TabRelease:
 		return m.navigateToMergePRs()
-	case 3: // All Open PRs
+	case ui.TabAllPRs:
 		m.screen = ScreenLoading
 		m.loadingMessage = "Fetching all open PRs..."
 		return m, fetchAllOpenPRsCmd(m.config, m.dryRun)
-	case 4: // GitHub Actions
+	case ui.TabActions:
 		m.actions.loading = true
 		m.screen = ScreenLoading
 		m.loadingMessage = "Fetching workflow runs..."
@@ -153,8 +168,11 @@ const (
 // too tall the open-PR and Actions cards go, then the pipeline: Start stays.
 func (m Model) renderHome(availableHeight int) string {
 	w := m.frameWidth()
+	if m.trunkBased() {
+		return m.renderTrunkHome(w, availableHeight)
+	}
 	if w < twoColumnMinWidth {
-		startHeight := len(startItems) + 4
+		startHeight := len(m.visibleTabs()) + 4
 		start := m.startCard(w, startHeight)
 		full := []string{m.pipelineCard(w), m.attentionCard(w, middleCardHeight), start}
 		if cardsHeight(full) <= availableHeight {
@@ -187,6 +205,31 @@ func (m Model) renderHome(availableHeight int) string {
 		sideBySide(m.attentionCard(l, lowerCardHeight), m.startCard(r, lowerCardHeight)))
 }
 
+// renderTrunkHome is renderHome without a release chain: no pipeline, and the
+// open PRs are every PR into a default branch, so attention gets the room.
+func (m Model) renderTrunkHome(w, availableHeight int) string {
+	if w < twoColumnMinWidth {
+		startHeight := len(m.visibleTabs()) + 4
+		start := m.startCard(w, startHeight)
+		if rest := availableHeight - startHeight - 1; rest >= 4 {
+			return m.attentionCard(w, min(rest, lowerCardHeight)) + "\n\n" + start
+		}
+		return start
+	}
+	l := (w - cardGap) / 2
+	r := w - cardGap - l
+	for _, h := range []int{lowerCardHeight, lowerCardHeight - 1} {
+		full := []string{
+			sideBySide(m.trunkPRsCard(l, h), m.attentionCard(r, h)),
+			sideBySide(m.actionsCard(l, h), m.startCard(r, h)),
+		}
+		if cardsHeight(full) <= availableHeight {
+			return strings.Join(full, "\n\n")
+		}
+	}
+	return sideBySide(m.attentionCard(l, lowerCardHeight), m.startCard(r, lowerCardHeight))
+}
+
 // fitCards stacks rows of cards a blank line apart, dropping from the top
 // until they fit. The last row is always kept.
 func fitCards(height int, rows ...string) string {
@@ -209,9 +252,13 @@ func sideBySide(a, b string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, a, strings.Repeat(" ", cardGap), b)
 }
 
-// keyMeta is a card's corner hint for the key that opens more.
-func keyMeta(key string) string {
-	return ui.Dim.Render("press ") + ui.WhiteBold.Render(key)
+// keyMeta is a card's corner hint for the Start row key that opens a tab.
+func (m Model) keyMeta(tab int) string {
+	row, ok := m.startRow(tab)
+	if !ok {
+		return ""
+	}
+	return ui.Dim.Render("press ") + ui.WhiteBold.Render(fmt.Sprint(row+1))
 }
 
 // homeWaiting is what a card shows before there is any data: a spinner while
@@ -449,7 +496,60 @@ func (m Model) releasePRsCard(width, height int) string {
 			lines = append(lines, ui.Dim.Render(label)+ui.Green.Render(joinFit(ready, inner-len(label))))
 		}
 	}
-	return ui.Card("Open release PRs", keyMeta("3"), lines, width, height)
+	return ui.Card("Open release PRs", m.prCardMeta(ui.TabRelease), lines, width, height)
+}
+
+// trunkPRsCard is the open PRs into the repos' default branches: their CI, the
+// drafts, the reviews still owed, and what could be merged now.
+func (m Model) trunkPRsCard(width, height int) string {
+	inner := width - 4
+	rows := ui.CardRows(height)
+	var lines []string
+	if line, waiting := m.homeWaiting(); waiting {
+		lines = []string{line}
+	} else if p, bad := m.homeProblem("open PRs"); bad {
+		lines = []string{p}
+	} else {
+		s := m.home.data.IntoDefault
+		label := func(text string) string { return visPad(ui.Dim.Render(text), 10) }
+		if s.Open == 0 {
+			lines = append(lines, label("open")+ui.Dim.Render("none"))
+		} else {
+			counts := ui.Green.Render(fmt.Sprintf("✓%d", s.Green))
+			if s.Failing > 0 {
+				counts += " " + ui.Red.Render(fmt.Sprintf("✗%d", s.Failing))
+			}
+			if s.Pending > 0 {
+				counts += " " + ui.Yellow.Render(fmt.Sprintf("◐%d", s.Pending))
+			}
+			barW := max(min(inner-10-18, 14), 4)
+			lines = append(lines, label("open")+meter(s.Green, s.Open, barW)+"  "+
+				visPad(ui.White.Render(fmt.Sprint(s.Open)), 4)+counts)
+		}
+		lines = append(lines, label("drafts")+ui.White.Render(fmt.Sprint(s.Drafts)))
+		reviews := fmt.Sprintf("%d waiting", s.AwaitingReview)
+		if s.ChangesRequested > 0 {
+			reviews += fmt.Sprintf(", %d changes requested", s.ChangesRequested)
+		}
+		lines = append(lines, label("reviews")+ui.White.Render(reviews))
+		if len(s.Ready) > 0 {
+			if len(lines)+2 <= rows {
+				lines = append(lines, "")
+			}
+			prefix := "Ready to merge: "
+			lines = append(lines, ui.Dim.Render(prefix)+ui.Green.Render(joinFit(s.Ready, inner-len(prefix))))
+		}
+	}
+	return ui.Card("Open PRs", m.prCardMeta(ui.TabAllPRs), lines, width, height)
+}
+
+// prCardMeta is a PR card's corner: the key to open more, or that GitHub's
+// merge states could not be read, so conflicts and "ready" are incomplete.
+func (m Model) prCardMeta(tab int) string {
+	if _, bad := m.homeProblem("merge states"); bad {
+		return ui.Red.Render("✗ ") + ui.Dim.Render("conflicts unchecked")
+	}
+	return m.keyMeta(tab)
 }
 
 // meter is a bar filled done/total of width cells.
@@ -506,17 +606,23 @@ func (m Model) attentionCard(width, height int) string {
 				shown = items[:rows-1] // room for "+N more"
 			}
 		}
-		repoW, prW, stepW := 0, 0, 0
+		repoW, prW, detailW, stepW := 0, 0, 0, 0
 		for _, a := range shown {
 			repoW = max(repoW, lipgloss.Width(a.Repo))
 			prW = max(prW, len(prLabel(a.PR)))
+			detailW = max(detailW, lipgloss.Width(a.Detail))
 			stepW = max(stepW, lipgloss.Width(a.Step))
 		}
 		repoW = min(repoW, inner/4)
-		// The step is the first thing to go: the icon, repo and PR say most.
-		detailW := inner - 2 - (repoW + 1) - (prW + 1) - 2 - stepW
-		if detailW < 12 {
-			stepW, detailW = 0, inner-2-(repoW+1)-(prW+1)
+		// The details come first and the step or title gets what is left: the
+		// icon, repo, PR and why say most.
+		room := inner - 2 - (repoW + 1) - (prW + 1)
+		detailW = min(detailW, room)
+		stepW = min(stepW, room-detailW-2)
+		if stepW < 10 {
+			stepW, detailW = 0, room
+		} else {
+			detailW = room - 2 - stepW // the step stays at the right edge
 		}
 		for _, a := range shown {
 			icon, color := attentionIcon(a.Kind)
@@ -551,6 +657,8 @@ func attentionIcon(k attentionKind) (string, lipgloss.TerminalColor) {
 		return "⚠", ui.ColorOrange
 	case attnChangesRequested:
 		return "●", ui.ColorYellow
+	case attnReviewRequired:
+		return "◌", ui.ColorBlue
 	}
 	return "○", ui.ColorDarkGray
 }
@@ -559,7 +667,7 @@ func attentionIcon(k attentionKind) (string, lipgloss.TerminalColor) {
 func (m Model) actionsCard(width, height int) string {
 	inner := width - 4
 	rows := ui.CardRows(height)
-	meta := keyMeta("5")
+	meta := m.keyMeta(ui.TabActions)
 	var lines []string
 	if line, waiting := m.homeWaiting(); waiting {
 		lines = []string{line}
@@ -661,7 +769,8 @@ func ciShare(pct int) string {
 func (m Model) startCard(width, height int) string {
 	inner := width - 4
 	var lines []string
-	for i, it := range startItems {
+	for i, tab := range m.visibleTabs() {
+		it := startItems[tab]
 		bg := lipgloss.TerminalColor(ui.ColorPanel)
 		if i == m.menuIndex {
 			bg = ui.ColorSelection

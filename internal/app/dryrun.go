@@ -343,18 +343,8 @@ func dryRunActionsJobs(runID uint64) actionsJobsFetchedResult {
 // It covers every attention kind and every CI state.
 func dryRunHomeData(flows []models.Flow) homeData {
 	now := timeNow()
-	names := []struct{ name, group, main string }{
-		{"web-app", "Frontend", "main"}, {"api-service", "Backend", "main"}, {"billing", "Backend", "main"},
-		{"worker", "Backend", "master"}, {"admin", "Frontend", "main"}, {"docs", "Frontend", "main"},
-	}
-	var repos []repoNWO
-	for _, n := range names {
-		repos = append(repos, repoNWO{Repo: models.NewRepoInfo("/demo/"+n.name, n.group+"/"+n.name, n.main, n.group), NWO: "acme/" + n.name})
-	}
-	check := func(status, conclusion string) []models.CheckRun {
-		return []models.CheckRun{{Name: "test", Status: status, Conclusion: conclusion}}
-	}
-	passing, failing, running := check("COMPLETED", "SUCCESS"), check("COMPLETED", "FAILURE"), check("IN_PROGRESS", "")
+	repos := dryRunHomeRepos()
+	passing, failing, running := dryRunChecks()
 	pr := func(n uint64, f models.Flow, repo repoNWO, ci []models.CheckRun, state string, changes bool) models.GhPr {
 		p := models.GhPr{Number: n, HeadBranch: f.HeadBranch(), BaseBranch: f.BaseBranch(repo.Repo.MainBranch),
 			StatusCheckRollup: ci, Mergeable: "MERGEABLE", MergeStateStatus: state}
@@ -395,15 +385,77 @@ func dryRunHomeData(flows []models.Flow) homeData {
 		}
 	}
 
+	runs := dryRunHomeRuns(repos, now, [4]string{"main", "dev", "staging", "dev"})
+	return buildHomeData(flows, repos, prs, ahead, runs, now)
+}
+
+// dryRunTrunkHomeData covers every trunk attention reason, ready PRs, drafts,
+// and a stacked PR into a feature branch, which is not counted.
+func dryRunTrunkHomeData() homeData {
+	now := timeNow()
+	repos := dryRunHomeRepos()
+	passing, failing, running := dryRunChecks()
+	pr := func(repo repoNWO, n uint64, title string, ci []models.CheckRun, state, review string) models.GhPr {
+		p := models.GhPr{Number: n, Title: title, HeadBranch: "feature", BaseBranch: repo.Repo.MainBranch,
+			StatusCheckRollup: ci, Mergeable: "MERGEABLE", MergeStateStatus: state, ReviewDecision: review}
+		if state == "DIRTY" {
+			p.Mergeable = "CONFLICTING"
+		}
+		return p
+	}
+	draft := func(repo repoNWO, n uint64, title string) models.GhPr {
+		p := pr(repo, n, title, passing, "DRAFT", "")
+		p.IsDraft = true
+		return p
+	}
+	web, api, billing, worker, admin, docs := repos[0], repos[1], repos[2], repos[3], repos[4], repos[5]
+	stacked := pr(api, 122, "Export: the download button", passing, "CLEAN", "")
+	stacked.BaseBranch = "feature/export"
+	prs := map[string][]models.GhPr{
+		web.NWO: {pr(web, 301, "Add the onboarding checklist", failing, "UNSTABLE", "REVIEW_REQUIRED"),
+			draft(web, 299, "Try the new nav")},
+		api.NWO: {pr(api, 120, "Rate-limit the export endpoint", passing, "CLEAN", "APPROVED"),
+			pr(api, 121, "Bump Go to 1.27", passing, "CLEAN", ""), stacked},
+		billing.NWO: {pr(billing, 57, "Retry failed webhooks", running, "DIRTY", "CHANGES_REQUESTED")},
+		worker.NWO:  {pr(worker, 12, "Batch the nightly job", running, "BLOCKED", "REVIEW_REQUIRED")},
+		admin.NWO:   {pr(admin, 33, "Team settings page", passing, "BLOCKED", "REVIEW_REQUIRED")},
+		docs.NWO:    {draft(docs, 8, "Rewrite the setup guide")},
+	}
+	runs := dryRunHomeRuns(repos, now, [4]string{"main", "feature/checklist", "main", "feature/export"})
+	return buildTrunkHomeData(repos, prs, runs, now)
+}
+
+func dryRunHomeRepos() []repoNWO {
+	names := []struct{ name, group, main string }{
+		{"web-app", "Frontend", "main"}, {"api-service", "Backend", "main"}, {"billing", "Backend", "main"},
+		{"worker", "Backend", "master"}, {"admin", "Frontend", "main"}, {"docs", "Frontend", "main"},
+	}
+	var repos []repoNWO
+	for _, n := range names {
+		repos = append(repos, repoNWO{Repo: models.NewRepoInfo("/demo/"+n.name, n.group+"/"+n.name, n.main, n.group), NWO: "acme/" + n.name})
+	}
+	return repos
+}
+
+func dryRunChecks() (passing, failing, running []models.CheckRun) {
+	check := func(status, conclusion string) []models.CheckRun {
+		return []models.CheckRun{{Name: "test", Status: status, Conclusion: conclusion}}
+	}
+	return check("COMPLETED", "SUCCESS"), check("COMPLETED", "FAILURE"), check("IN_PROGRESS", "")
+}
+
+// dryRunHomeRuns is the recent runs and a day of CI history, on the branches
+// given for the four latest runs.
+func dryRunHomeRuns(repos []repoNWO, now time.Time, branches [4]string) []actionsEntry {
 	run := func(repo int, wf, branch, status, conclusion string, ago time.Duration) actionsEntry {
 		return actionsEntry{Repo: repos[repo].Repo, Run: models.WorkflowRun{WorkflowName: wf, HeadBranch: branch,
 			Status: status, Conclusion: conclusion, UpdatedAt: now.Add(-ago)}}
 	}
 	runs := []actionsEntry{
-		run(0, "deploy-prod", "main", "completed", "success", 4*time.Minute),
-		run(1, "ci", "dev", "in_progress", "", 20*time.Second),
-		run(2, "e2e", "staging", "completed", "failure", time.Hour),
-		run(3, "lint", "dev", "completed", "success", 2*time.Hour),
+		run(0, "deploy-prod", branches[0], "completed", "success", 4*time.Minute),
+		run(1, "ci", branches[1], "in_progress", "", 20*time.Second),
+		run(2, "e2e", branches[2], "completed", "failure", time.Hour),
+		run(3, "lint", branches[3], "completed", "success", 2*time.Hour),
 	}
 	// A day of history for the CI strip: busy in working hours, two failures.
 	for h := 3; h < 24; h++ {
@@ -412,8 +464,8 @@ func dryRunHomeData(flows []models.Flow) homeData {
 			if h == 9 && k == 0 || h == 17 && k == 0 {
 				conclusion = "failure"
 			}
-			runs = append(runs, run((h+k)%len(repos), "ci", "dev", "completed", conclusion, time.Duration(h)*time.Hour+time.Duration(k)*7*time.Minute))
+			runs = append(runs, run((h+k)%len(repos), "ci", branches[1], "completed", conclusion, time.Duration(h)*time.Hour+time.Duration(k)*7*time.Minute))
 		}
 	}
-	return buildHomeData(flows, repos, prs, ahead, runs, now)
+	return runs
 }

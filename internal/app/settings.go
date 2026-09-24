@@ -106,6 +106,18 @@ var settingsFields = []settingsField{
 		EditHint: "The slug from linear.app/<org>",
 	},
 	{
+		Label: "Trunk-based",
+		Desc:  "Work on the default branch; hides the release-chain screens",
+		Bool:  func(c *config.Config) bool { return c.TrunkBased() },
+		Toggle: func(c *config.Config) {
+			if c.TrunkBased() {
+				c.Branching = ""
+				return
+			}
+			c.Branching = config.BranchingTrunk
+		},
+	},
+	{
 		Label: "Release steps",
 		Desc:  "The chain of PRs a release moves through",
 		Get:   func(c *config.Config) string { return flowsSummary(c) },
@@ -499,7 +511,10 @@ func flowsSummary(c *config.Config) string {
 	}
 	chain := strings.Join(parts, " → ")
 	if len(chain) > 44 {
-		return countLabel(len(flows), "step", "steps")
+		chain = countLabel(len(flows), "step", "steps")
+	}
+	if c.TrunkBased() {
+		return chain + " (unused: trunk-based)"
 	}
 	return chain
 }

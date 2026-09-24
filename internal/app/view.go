@@ -195,6 +195,7 @@ func (m Model) renderHeader() string {
 		// The main menu is not one of the tabs: highlighting Single there
 		// claims you are in a flow you have not chosen yet.
 		ActiveTab: m.activeTabForDisplay(),
+		Tabs:      m.visibleTabs(),
 		DryRun:    m.dryRun,
 		Meta:      strings.Join(meta, " · "),
 	}, m.frameWidth())

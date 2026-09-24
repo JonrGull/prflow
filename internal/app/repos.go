@@ -45,7 +45,7 @@ func discoverRepos(cfg *config.Config) ([]models.RepoInfo, error) {
 	}
 
 	repos, err := git.FindRepos(cfg.ReposPath(), cfg.GlobEntries(), cfg.ExplicitRepos())
-	releaseTargets(repos, cfg.FlowEntries(), git.GuessMainBranch)
+	resolveTargets(cfg, repos)
 
 	repoCacheKey = key
 	repoCacheVal = repos
@@ -72,10 +72,19 @@ func repoCacheKeyFor(cfg *config.Config) string {
 	for _, r := range cfg.ExplicitRepos() {
 		key += "\x00r:" + r.Path + "=" + r.Group
 	}
+	key += "\x00b:" + cfg.Branching
 	for _, f := range cfg.FlowEntries() {
 		key += "\x00f:" + f.HeadBranch()
 	}
 	return key
+}
+
+// resolveTargets settles each repo's @default. Trunk-based repos release their
+// real default branch, so it is kept.
+func resolveTargets(cfg *config.Config, repos []models.RepoInfo) {
+	if !cfg.TrunkBased() {
+		releaseTargets(repos, cfg.FlowEntries(), git.GuessMainBranch)
+	}
 }
 
 // releaseTargets resolves @default for a repo whose default branch is one the

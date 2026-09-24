@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/JonrGull/prflow/internal/run"
 )
@@ -20,12 +21,43 @@ type MergeState struct {
 	Status    string // mergeStateStatus: CLEAN when GitHub would merge it now
 }
 
-// MergeStates asks for each PR's merge state in one GraphQL request. It is not
-// in SearchAllOpenPRs: working it out for a whole page made GitHub time out.
+// mergeStateChunk is how many PRs one merge-state request asks about; the
+// requests run at once. One request for 84 PRs took 9s, then timed out.
+const mergeStateChunk = 10
+
+// MergeStates asks for each PR's merge state, which is too slow to be in the
+// search. A group that fails leaves its PRs out; the rest are still returned.
 func MergeStates(refs []PRRef) (map[PRRef]MergeState, error) {
-	if len(refs) == 0 {
-		return nil, nil
+	var chunks [][]PRRef
+	for i := 0; i < len(refs); i += mergeStateChunk {
+		chunks = append(chunks, refs[i:min(i+mergeStateChunk, len(refs))])
 	}
+	found := make([]map[PRRef]MergeState, len(chunks))
+	errs := make([]error, len(chunks))
+	var wg sync.WaitGroup
+	for i, chunk := range chunks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			found[i], errs[i] = mergeStates(chunk)
+		}()
+	}
+	wg.Wait()
+
+	states := make(map[PRRef]MergeState)
+	var firstErr error
+	for i := range chunks {
+		if errs[i] != nil && firstErr == nil {
+			firstErr = errs[i]
+		}
+		for ref, st := range found[i] {
+			states[ref] = st
+		}
+	}
+	return states, firstErr
+}
+
+func mergeStates(refs []PRRef) (map[PRRef]MergeState, error) {
 	var params, fields []string
 	args := []string{"api", "graphql"}
 	for i, r := range refs {

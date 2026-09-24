@@ -12,6 +12,7 @@ import (
 	"github.com/JonrGull/prflow/internal/config"
 	"github.com/JonrGull/prflow/internal/linear"
 	"github.com/JonrGull/prflow/internal/models"
+	"github.com/JonrGull/prflow/internal/ui"
 	"github.com/JonrGull/prflow/internal/update"
 
 	"github.com/charmbracelet/lipgloss"
@@ -239,6 +240,7 @@ var goldenSizes = map[string][2]int{
 	"main_menu_narrow":       {80, 40},
 	"main_menu_short":        {120, 30},
 	"main_menu_narrow_short": {80, 24},
+	"main_menu_trunk_narrow": {80, 24},
 }
 
 // screenCases covers every screen, plus the empty-state variants separately.
@@ -461,6 +463,25 @@ func screenCases() []screenCase {
 		screenCase{"main_menu_three_steps", ScreenMainMenu, homeThree},
 		screenCase{"main_menu_unchained_steps", ScreenMainMenu, unchained},
 		screenCase{"pull_branch_select_three_steps", ScreenPullBranchSelect, pullThree},
+	)
+
+	// Trunk-based: no chain, so no pipeline and no chain tabs, and the PR
+	// cards cover every PR into a default branch.
+	trunk := func() Model {
+		m := populatedModel()
+		m.config.Branching = config.BranchingTrunk
+		m.home.data = dryRunTrunkHomeData()
+		return m
+	}
+	trunkSettings := trunk()
+	trunkSettings.menuIndex = 3 // the Trunk-based row
+	trunkAllPRs := trunk()
+	trunkAllPRs.activeTab = ui.TabAllPRs
+	cases = append(cases,
+		screenCase{"main_menu_trunk", ScreenMainMenu, trunk()},
+		screenCase{"main_menu_trunk_narrow", ScreenMainMenu, trunk()},
+		screenCase{"settings_trunk", ScreenSettings, trunkSettings},
+		screenCase{"view_all_prs_trunk", ScreenViewAllPrs, trunkAllPRs},
 	)
 
 	// First-run setup has three distinct states, and the two failure ones are

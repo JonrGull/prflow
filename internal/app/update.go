@@ -2,6 +2,7 @@ package app
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -326,7 +327,7 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 	// Compared against the displayed tab, not the stored one: on the main menu
 	// nothing is selected, so navigating to tab 0 is a real move rather than a
 	// no-op against a value left over from last time.
-	if tab < ui.HomeTab || tab > 4 || tab == m.activeTabForDisplay() {
+	if tab == m.activeTabForDisplay() {
 		return m, nil
 	}
 	if tab == ui.HomeTab {
@@ -335,7 +336,10 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 		// just left.
 		m.screen = ScreenMainMenu
 		m.mode = nil
-		m.menuIndex = m.activeTab
+		m.menuIndex, _ = m.startRow(m.activeTab)
+		return m, nil
+	}
+	if _, shown := m.startRow(tab); !shown {
 		return m, nil
 	}
 	m.activeTab = tab
@@ -343,20 +347,12 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 
 	// Use cached data for instant switching; fall back to loading
 	switch tab {
-	case 0: // Single — always needs fresh repo detection
-		m.menuIndex = 0
-		return m.selectMainMenuItem()
-	case 1: // Batch — goes to type select, no data to cache
-		m.menuIndex = 1
-		return m.selectMainMenuItem()
-	case 2: // Release PRs — use cached if available
+	case ui.TabRelease: // use cached if available
 		if len(m.merge.openPRs) > 0 {
 			m.screen = ScreenViewOpenPrs
 			return m, nil
 		}
-		m.menuIndex = 2
-		return m.selectMainMenuItem()
-	case 3: // All Open PRs — use cached if available
+	case ui.TabAllPRs: // use cached if available
 		if len(m.allPRs.entries) > 0 {
 			m.screen = ScreenViewAllPrs
 			// The old refresh chain ended with the epoch, as the Actions one
@@ -367,9 +363,7 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		m.menuIndex = 3
-		return m.selectMainMenuItem()
-	case 4: // Actions — use cached if available
+	case ui.TabActions: // use cached if available
 		if len(m.actions.entries) > 0 {
 			m.screen = ScreenActionsOverview
 			preview := m.previewActionsRun()
@@ -379,10 +373,9 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 			}
 			return m, preview
 		}
-		m.menuIndex = 4
-		return m.selectMainMenuItem()
 	}
-	return m, nil
+	// Single always needs fresh repo detection, and Batch has nothing cached.
+	return m.openTab(tab)
 }
 
 // handleKey processes keyboard input
@@ -419,24 +412,19 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Tab switching with [ and ] (blocked during text input/filter, and while
 	// a write is running).
 	//
-	// Home is the tab before Single, so the cycle runs Home, Single … Actions
-	// and back to Home. Stepping from activeTabForDisplay rather than activeTab
-	// is what makes ] on the dashboard enter Single instead of skipping past it.
+	// Home comes first, then the tabs shown, and back to Home. Stepping from
+	// activeTabForDisplay rather than activeTab is what makes ] on the
+	// dashboard enter the first tab instead of skipping past it.
 	if (msg.String() == "[" || msg.String() == "]") && !m.isTextInputActive() && !isBusy(m.screen) {
-		last := len(ui.TabNames) - 1
-		current := m.activeTabForDisplay()
+		// Stepped over the tabs shown, by position: adding one to a tab's ID
+		// would land on a hidden one.
+		order := append([]int{ui.HomeTab}, m.visibleTabs()...)
+		pos := slices.Index(order, m.activeTabForDisplay())
+		step := 1
 		if msg.String() == "[" {
-			tab := current - 1
-			if tab < ui.HomeTab {
-				tab = last
-			}
-			return m.navigateToTab(tab)
+			step = -1
 		}
-		tab := current + 1
-		if tab > last {
-			tab = ui.HomeTab
-		}
-		return m.navigateToTab(tab)
+		return m.navigateToTab(order[(max(pos, 0)+step+len(order))%len(order)])
 	}
 
 	switch m.screen {

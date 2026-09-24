@@ -203,3 +203,49 @@ func TestTicketPatternCase(t *testing.T) {
 		}
 	}
 }
+
+// Trunk-based teams work straight on the default branch, so the chain goes
+// unused. It is kept in the file, so switching back restores it, and an empty
+// chain is no longer an error.
+func TestTrunkBranchingKeepsTheChain(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+
+	cfg := DefaultConfig()
+	cfg.Branching = BranchingTrunk
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.TrunkBased() || len(loaded.Flows) != 2 {
+		t.Errorf("after a save: trunk %v, %d flows, want trunk with the 2 flows kept", loaded.TrunkBased(), len(loaded.Flows))
+	}
+
+	loaded.Flows = nil
+	for _, d := range loaded.Validate() {
+		if d.Field == "flows" {
+			t.Errorf("trunk-based with no flows reported %v", d)
+		}
+	}
+	loaded.Branching = ""
+	if !hasDiagnostic(loaded.Validate(), "flows") {
+		t.Error("the release chain with no flows is not reported")
+	}
+	loaded.Branching = "trunkk"
+	if !hasDiagnostic(loaded.Validate(), "branching") {
+		t.Error("an unknown branching value is not reported")
+	}
+}
+
+func hasDiagnostic(diags []Diagnostic, field string) bool {
+	for _, d := range diags {
+		if d.Field == field {
+			return true
+		}
+	}
+	return false
+}

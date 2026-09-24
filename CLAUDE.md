@@ -131,14 +131,18 @@ arriving home when older than `homeStaleAfter` or after a failed fetch;
 `applySettingsChange` replaces the cache with an empty one and bumps the gen,
 so nothing from the old settings is shown and the way home refetches. A source
 that fails goes into `Problems` and shows on its card instead of an empty
-list. Home is also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` cycle.
-- **Ready to merge** needs GitHub's `mergeStateStatus` to be `CLEAN`:
+list. Home is also a tab: `ui.HomeTab` (-1) comes before the first tab in the `[`/`]` cycle.
+- **Ready to merge** needs GitHub's `mergeStateStatus` to be `CLEAN` (or
+  `HAS_HOOKS`, the same on a server with pre-receive hooks):
   `mergeable` only rules out conflicts, so a PR still needing a required review
   passed it. The state is not in the open-PR search, which GitHub timed out
   (HTTP 504) with it, since it works the state out for every PR in the page.
-  `github.MergeStates` asks for the release PRs alone, and asks once more
-  after `homeMergeStateRetry` for any GitHub answered `UNKNOWN`, which the
-  first request for a PR always gets.
+  `github.MergeStates` asks for the PRs the cards show, 10 per request, all at
+  once (one request for 84 PRs timed out), and asks once more after
+  `homeMergeStateRetry` for the ones GitHub answered `UNKNOWN`, which the
+  first request for a PR always gets. A group that fails leaves its PRs
+  unchecked and goes into `Problems` as "merge states": the PR cards stay, with
+  "conflicts unchecked" in the corner.
 - **Cards** are `ui.Card`: shaded, borderless and exactly the size asked.
   lipgloss ends every styled span with a reset, which would punch a hole in the
   shading, so `ui.OnBackground` puts the panel colour back after each one.
@@ -155,12 +159,35 @@ list. Home is also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` c
   overflowed 80x19 the same way. The height test runs every `heightAwareScreens`
   case at 80 and 120 columns, normal and fullscreen.
 
+**Trunk-based mode** (`branching = "trunk"`, the Trunk-based row in Settings):
+for teams that work straight on the default branch and release by deploying
+it. The `[[flows]]` stay saved but unused, so switching back restores them.
+- **`m.flows()` returns nothing** in trunk mode, so nothing compares, fetches or
+  colours by the unused chain; `chainBranches()` follows. `resolveTargets`
+  skips the `@default` swap, since a trunk-based repo releases its real default
+  branch, and the repo cache key includes the mode.
+- **Tabs have IDs** (`ui.TabSingle` … `ui.TabActions`), and `m.visibleTabs()`
+  lists the ones shown: Single, Batch and Release PRs go in trunk mode. A tab's
+  ID is never its position. `activeTab` holds an ID; `menuIndex` on Home is a
+  Start row, turned into a tab by `visibleTabs()[row]` and back by `startRow`;
+  the `[`/`]` cycle steps through `HomeTab` then `visibleTabs()` by position;
+  `navigateToTab` refuses a hidden tab; and `ui.RenderHeader` draws only
+  `HeaderInfo.Tabs` at every width. When they were the same number, `]` from
+  Home added one and landed on a hidden tab.
+- **Home** (`buildTrunkHomeData`, `renderTrunkHome`): no pipeline, and the PR
+  cards cover every open PR into each repo's default branch, forks included.
+  Drafts are counted, not flagged. Attention is one row per PR with every
+  reason, filed under the most blocking: CI failing, conflict, changes
+  requested, review required (`reviewDecision`, in the dashboard search).
+- **Pull** (`p`) pulls each repo's default branch directly: there is no chain
+  to pick from.
+
 **Animation tick:** the 80ms tick chain stops when `needsAnimation()` is false and `Update` restarts it when state changes. If you add something that animates on an otherwise-static screen, add it to `needsAnimation()` or it will appear frozen.
 
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (74 cases in
+golden renders of every screen plus its interesting states (78 cases in
 `internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a

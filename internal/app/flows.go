@@ -39,12 +39,34 @@ func flowChainColor(i int) lipgloss.TerminalColor  { return flowChainColors[i%le
 func flowColumnColor(i int) lipgloss.TerminalColor { return flowColumnColors[i%len(flowColumnColors)] }
 func flowColumnMarker(i int) string                { return flowColumnMarkers[i%len(flowColumnMarkers)] }
 
-// flows returns the configured release steps, in order.
+// flows returns the configured release steps, in order: none when trunk-based,
+// so nothing compares, fetches or colours by an unused chain.
 func (m Model) flows() []models.Flow {
-	if m.config == nil {
+	if m.config == nil || m.trunkBased() {
 		return nil
 	}
 	return m.config.FlowEntries()
+}
+
+func (m Model) trunkBased() bool { return m.config != nil && m.config.TrunkBased() }
+
+// visibleTabs are the tabs shown, in order. Single, Batch and Release PRs
+// release along the chain, which trunk-based work does not have.
+func (m Model) visibleTabs() []int {
+	if m.trunkBased() {
+		return []int{ui.TabAllPRs, ui.TabActions}
+	}
+	return ui.AllTabs
+}
+
+// startRow is a tab's row on the Start card, which lists the visible tabs.
+func (m Model) startRow(tab int) (int, bool) {
+	for i, t := range m.visibleTabs() {
+		if t == tab {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // chainBranches lists every branch the release chain touches, in order: each

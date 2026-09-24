@@ -45,19 +45,6 @@ var (
 // Screens absent from both this and dynamicKeyHints show no hints — that is
 // the case for the progress screens, which take no input.
 var staticKeyHints = map[Screen][]keyHint{
-	ScreenMainMenu: {
-		{"1-5", "Select", ui.ColorYellow},
-		hintNavigate,
-		{"Enter", "Select", ui.ColorGreen},
-		{"r", "Refresh", ui.ColorGreen},
-		{"a", "Actions", ui.ColorOrange},
-		{"p", "Pull", ui.ColorGreen},
-		{"o", "Settings", ui.ColorCyan},
-		{"c", "Config", ui.ColorMagenta},
-		{"u", "Update", ui.ColorCyan},
-		{"h", "History", ui.ColorBlue},
-		hintQuit,
-	},
 	ScreenTitleInput: {
 		{"Enter", "Submit", ui.ColorGreen},
 		hintBack,
@@ -206,6 +193,24 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 			auto,
 			{"s", sortLabel, ui.ColorBlue},
 			hintBack,
+		}
+	},
+
+	// The Start card lists the visible tabs, so the digits run to however
+	// many there are.
+	ScreenMainMenu: func(m Model) []keyHint {
+		return []keyHint{
+			{fmt.Sprintf("1-%d", len(m.visibleTabs())), "Select", ui.ColorYellow},
+			hintNavigate,
+			{"Enter", "Select", ui.ColorGreen},
+			{"r", "Refresh", ui.ColorGreen},
+			{"a", "Actions", ui.ColorOrange},
+			{"p", "Pull", ui.ColorGreen},
+			{"o", "Settings", ui.ColorCyan},
+			{"c", "Config", ui.ColorMagenta},
+			{"u", "Update", ui.ColorCyan},
+			{"h", "History", ui.ColorBlue},
+			hintQuit,
 		}
 	},
 

@@ -183,6 +183,16 @@ func (m Model) selectPullBranch() (tea.Model, tea.Cmd) {
 	return m, loadPullReposCmd(m.config)
 }
 
+// pullDefaultBranches pulls each repo's own default branch, which is the one
+// branch trunk-based work has.
+func (m Model) pullDefaultBranches() (tea.Model, tea.Cmd) {
+	m.pull.branch = m.mainBranch() // shown; each repo pulls its own default
+	m.pull.useDefault = true
+	m.screen = ScreenLoading
+	m.loadingMessage = "Scanning repositories..."
+	return m, loadPullReposCmd(m.config)
+}
+
 func (m Model) handlePullSummaryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":

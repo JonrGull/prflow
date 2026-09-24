@@ -59,6 +59,7 @@ type GhPr struct {
 	Comments          []PrComment     `json:"comments"`
 	Reviews           []PrReview      `json:"reviews"`
 	LatestReviews     []PrReview      `json:"latestReviews"`
+	ReviewDecision    string          `json:"reviewDecision"` // REVIEW_REQUIRED, CHANGES_REQUESTED, APPROVED, or empty
 	ReviewRequests    []ReviewRequest `json:"reviewRequests"`
 	Commits           []PrCommit      `json:"commits"`
 }

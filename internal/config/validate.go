@@ -45,7 +45,19 @@ func (d Diagnostic) String() string {
 func (c *Config) Validate() []Diagnostic {
 	var diags []Diagnostic
 
-	diags = append(diags, c.validateFlows()...)
+	switch c.Branching {
+	case "", BranchingChain:
+		diags = append(diags, c.validateFlows()...)
+	case BranchingTrunk:
+		// The flows are unused, so they are not checked either.
+	default:
+		diags = append(diags, Diagnostic{
+			Severity: SeverityError,
+			Field:    "branching",
+			Message:  fmt.Sprintf("%q is not a branching model", c.Branching),
+			Fix:      `use "trunk", or "chain" for the release chain`,
+		})
+	}
 
 	base := c.ReposPath()
 	hasExplicit := len(c.Repos) > 0

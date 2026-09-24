@@ -29,7 +29,7 @@ type Model struct {
 	screen     Screen
 	menuIndex  int
 	shouldQuit bool
-	activeTab  int  // 0=Single, 1=Batch, 2=Release PRs, 3=All Open PRs, 4=Actions
+	activeTab  int  // a ui.Tab ID
 	fullscreen bool // hides the header
 
 	// epoch counts flows left behind; results from an older one are dropped.
@@ -211,7 +211,7 @@ func (m Model) Init() tea.Cmd {
 		}
 	}
 	if m.home.loading {
-		cmds = append(cmds, fetchHomeCmd(m.config, m.flows(), m.dryRun, m.home.gen))
+		cmds = append(cmds, fetchHomeCmd(m.config, m.flows(), m.trunkBased(), m.dryRun, m.home.gen))
 	}
 	// Test update flag shows fake update prompt
 	if m.testUpdate {

@@ -43,14 +43,22 @@ type ColumnsConfig struct {
 	Right []string `toml:"right"`
 }
 
+// The branching models. Trunk-based teams work straight on the default branch
+// and release by deploying it, so the release chain and its screens go unused.
+const (
+	BranchingChain = "chain" // the default, also when the key is absent
+	BranchingTrunk = "trunk"
+)
+
 type Config struct {
-	Paths   PathsConfig   `toml:"paths"`
-	Columns ColumnsConfig `toml:"columns"`
-	Globs   []GlobEntry   `toml:"globs"`
-	Repos   []RepoEntry   `toml:"repos"`
-	Flows   []FlowEntry   `toml:"flows"`
-	Tickets TicketsConfig `toml:"tickets"`
-	Update  UpdateConfig  `toml:"update"`
+	Branching string        `toml:"branching,omitempty"`
+	Paths     PathsConfig   `toml:"paths"`
+	Columns   ColumnsConfig `toml:"columns"`
+	Globs     []GlobEntry   `toml:"globs"`
+	Repos     []RepoEntry   `toml:"repos"`
+	Flows     []FlowEntry   `toml:"flows"`
+	Tickets   TicketsConfig `toml:"tickets"`
+	Update    UpdateConfig  `toml:"update"`
 
 	// Compiled regex from Tickets.Pattern (not serialized)
 	ticketRegex *regexp.Regexp
@@ -448,6 +456,10 @@ func (c *Config) GlobEntries() []models.GlobEntry {
 	}
 	return result
 }
+
+// TrunkBased reports trunk-based branching. The configured flows are kept, but
+// unused, so switching back restores them.
+func (c *Config) TrunkBased() bool { return c.Branching == BranchingTrunk }
 
 // FlowEntries returns the configured release flows.
 func (c *Config) FlowEntries() []models.Flow {
