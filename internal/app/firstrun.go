@@ -235,7 +235,9 @@ func (m Model) renderFirstRun() string {
 	case m.firstRun.scanning:
 		lines = append(lines, fmt.Sprintf("  %s Looking...", ui.Cyan.Render(ui.Spinner(m.spinnerFrame))))
 
-	case !m.firstRun.preview.Ran:
+	// A scan of a path since edited describes some other directory, and used
+	// to stay on screen under the new one.
+	case !m.firstRun.preview.Ran || m.firstRun.preview.Path != strings.TrimSpace(m.firstRun.value):
 		lines = append(lines, ui.Dim.Render("  Press Enter to see what it finds."))
 
 	case m.firstRun.preview.Err != nil:

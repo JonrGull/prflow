@@ -248,6 +248,23 @@ func wrapToWidth(text string, width int, indent string) []string {
 	return lines
 }
 
+// tailToWidth keeps the end of s that fits in width cells, marking the cut
+// with "…". For a value being typed, where the end is where the cursor is. The
+// editors drew the whole value, and a long one wrapped, which broke the
+// screen's height budget.
+func tailToWidth(s string, width int) string {
+	if width < 2 || lipgloss.Width(s) <= width {
+		return s
+	}
+	r := []rune(s)
+	for i := range r {
+		if lipgloss.Width(string(r[i:])) <= width-1 {
+			return "…" + string(r[i:])
+		}
+	}
+	return "…"
+}
+
 // menuRowWidth is the width the numbered selection menus highlight across.
 const menuRowWidth = 46
 

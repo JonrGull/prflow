@@ -9,6 +9,7 @@ import (
 	"github.com/JonrGull/prflow/internal/models"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // The key handlers and the renderers worked out the visible rows separately,
@@ -115,5 +116,54 @@ func TestSessionHistoryCursorStaysOnScreen(t *testing.T) {
 			t.Fatalf("view is %d rows on a %d-row terminal", h, m.height)
 		}
 		m = send(t, m, keyDown)
+	}
+}
+
+// A value longer than its field ran past the panel edge while being edited.
+func TestLongEditValuesStayInside(t *testing.T) {
+	long := strings.Repeat("abcdefghij", 30)
+	widest := func(v string) int {
+		w := 0
+		for _, l := range strings.Split(v, "\n") {
+			w = max(w, lipgloss.Width(l))
+		}
+		return w
+	}
+
+	s := sized(settingsModel(t))
+	s.menuIndex = fieldIndex(t, "Repo directory")
+	s.settings.editing = true
+	s.settings.editValue = long
+	if w := widest(s.View()); w > s.width {
+		t.Errorf("settings: a line is %d wide on a %d-wide terminal", w, s.width)
+	}
+	// The value wrapped instead, which broke the height budget.
+	if h := strings.Count(s.View(), "\n") + 1; h > s.height {
+		t.Errorf("settings: view is %d rows on a %d-row terminal", h, s.height)
+	}
+
+	l := sized(listModel(t, listGlobs))
+	l.screen = ScreenListEdit
+	l.list.editing = true
+	l.list.editValue = long
+	if w := widest(l.View()); w > l.width {
+		t.Errorf("list editor: a line is %d wide on a %d-wide terminal", w, l.width)
+	}
+	if h := strings.Count(l.View(), "\n") + 1; h > l.height {
+		t.Errorf("list editor: view is %d rows on a %d-row terminal", h, l.height)
+	}
+	if !strings.Contains(l.View(), "…") || !strings.Contains(s.View(), "…") {
+		t.Error("a cut value should be marked with …")
+	}
+}
+
+// First run kept showing the last scan after the path was edited, so the
+// result on screen described a different directory.
+func TestFirstRunDropsAStaleScan(t *testing.T) {
+	m := sized(staleModel(ScreenFirstRun))
+	m.firstRun.value = "/elsewhere"
+	m.firstRun.preview = firstRunPreview{Ran: true, Path: "/old/path"}
+	if v := m.View(); !strings.Contains(v, "Press Enter to see what it finds") {
+		t.Error("a scan of /old/path was shown under /elsewhere")
 	}
 }

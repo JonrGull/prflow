@@ -577,7 +577,7 @@ func (m Model) renderListRow(setting listSetting, i int) string {
 
 		focused := selected && cell == m.list.cell
 		if focused && m.list.editing {
-			out += visPad(ui.WhiteBold.Render(m.list.editValue)+ui.Cyan.Render("█"), width+2)
+			out += visPad(ui.WhiteBold.Render(tailToWidth(m.list.editValue, width+1))+ui.Cyan.Render("█"), width+2)
 			continue
 		}
 

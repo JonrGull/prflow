@@ -308,9 +308,12 @@ func (m Model) renderSettingsFields(first, last int) []string {
 			lines = append(lines, fmt.Sprintf("  %s%s  %s", arrow, toggle, labelStyle.Render(field.Label)))
 
 		case editing:
+			// The box's inner width, less this line's indent, arrow, label,
+			// gap and cursor.
+			room := m.contentWidth() - 4 - 2 - lipgloss.Width(arrow) - lipgloss.Width(field.Label+":") - 2 - 1
 			lines = append(lines, fmt.Sprintf("  %s%s  %s%s",
 				arrow, ui.Green.Render(field.Label+":"),
-				ui.WhiteBold.Render(m.settings.editValue), ui.Cyan.Render("█")))
+				ui.WhiteBold.Render(tailToWidth(m.settings.editValue, max(room, 8))), ui.Cyan.Render("█")))
 
 		default:
 			valueStyle := ui.Dim

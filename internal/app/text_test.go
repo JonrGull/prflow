@@ -138,3 +138,21 @@ func TestAllPRsRowsStayAlignedWithWideText(t *testing.T) {
 		}
 	}
 }
+
+func TestTailToWidth(t *testing.T) {
+	cases := []struct {
+		in    string
+		width int
+		want  string
+	}{
+		{"short", 10, "short"},
+		{"abcdefghij", 5, "…ghij"},
+		{"日本語のパス", 7, "…のパス"}, // two cells per character
+	}
+	for _, tc := range cases {
+		got := tailToWidth(tc.in, tc.width)
+		if got != tc.want || lipgloss.Width(got) > tc.width {
+			t.Errorf("tailToWidth(%q, %d) = %q (%d wide), want %q", tc.in, tc.width, got, lipgloss.Width(got), tc.want)
+		}
+	}
+}
