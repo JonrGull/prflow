@@ -271,17 +271,55 @@ func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.menuIndex = 0
 		return m, nil
 	}
-	// Adjust scroll to keep highlighted item visible
-	visibleHeight := m.height - 15 // approximate visible rows in box
-	if visibleHeight < 5 {
-		visibleHeight = 5
-	}
-	if m.allPRs.index < m.allPRs.scroll {
-		m.allPRs.scroll = m.allPRs.index
-	} else if m.allPRs.index >= m.allPRs.scroll+visibleHeight {
-		m.allPRs.scroll = m.allPRs.index - visibleHeight + 1
-	}
+	m.keepAllPRsCursorVisible()
 	return m, nil
+}
+
+// keepAllPRsCursorVisible scrolls so the highlighted row is drawn. scroll
+// counts table lines, repo headers and blank lines included, so the cursor
+// has to be measured in lines too. It used to be compared as a row index,
+// against a height guessed from the terminal, so on a list with several repos
+// the cursor walked off the bottom.
+func (m *Model) keepAllPRsCursorVisible() {
+	_, _, available := m.chrome()
+	visible := allPRsRows(available)
+	line, firstInRepo := m.allPRsLineOf(m.allPRs.index)
+	if line < m.allPRs.scroll {
+		m.allPRs.scroll = line
+		if firstInRepo {
+			m.allPRs.scroll-- // show the repo's header with its first PR
+		}
+	} else if line >= m.allPRs.scroll+visible {
+		m.allPRs.scroll = line - visible + 1
+	}
+	m.allPRs.scroll = max(m.allPRs.scroll, 0)
+}
+
+// allPRsRows is how many table lines renderViewAllPrsWithHeight draws for the
+// height it is handed: the box border, then its title, legend and padding.
+func allPRsRows(availableHeight int) int {
+	return max(availableHeight-2-4, 5)
+}
+
+// allPRsLineOf is the table line entry i is drawn on, counted the way the
+// renderer counts: a blank line between repos, then the repo's header.
+func (m Model) allPRsLineOf(index int) (line int, firstInRepo bool) {
+	lastRepo := ""
+	for i, entry := range m.allPRs.entries {
+		first := entry.Repo.DisplayName != lastRepo
+		if first {
+			if lastRepo != "" {
+				line++
+			}
+			line++
+			lastRepo = entry.Repo.DisplayName
+		}
+		if i == index {
+			return line, first
+		}
+		line++
+	}
+	return line, false
 }
 
 func (m Model) reviewStatusIcon(status string) string {
@@ -313,6 +351,7 @@ func (m Model) prStatusIcon(status string) string {
 }
 
 func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
+	visibleHeight := allPRsRows(availableHeight)
 	availableHeight -= 2 // account for ColumnBox border lines
 	contentWidth := m.contentWidth()
 	boxWidth := contentWidth - 10
@@ -347,12 +386,6 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 	}
 	if branchW < 12 {
 		branchW = 12
-	}
-
-	// visibleHeight used for scrolling (scroll adjusted in update.go key handler)
-	visibleHeight := availableHeight - 4 // title + legend + padding
-	if visibleHeight < 5 {
-		visibleHeight = 5
 	}
 
 	var lines []string

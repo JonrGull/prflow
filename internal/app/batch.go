@@ -57,51 +57,15 @@ type batchState struct {
 	progressChan chan string
 }
 
-// batchConfirmContentLines calculates total content lines for the right column
-func (m *Model) batchConfirmContentLines() int {
-	totalLines := 0
-	for i := range m.batch.repos {
-		if i < len(m.batch.selected) && m.batch.selected[i] {
-			if i < len(m.batch.repoCommits) && m.batch.repoCommits[i] != nil {
-				commits := *m.batch.repoCommits[i]
-				if len(commits) > 0 {
-					totalLines++ // repo name
-					if len(commits) > 3 {
-						totalLines += 4 // 3 commits + "more" line
-					} else {
-						totalLines += len(commits)
-					}
-					totalLines++ // blank line after repo
-				}
-			}
-		}
-	}
-	// Tickets section
-	if len(m.tickets) > 0 {
-		totalLines++ // header
-		totalLines += len(m.tickets)
-	}
-	return totalLines
-}
-
-// scrollBatchConfirm scrolls the batch confirmation right column by delta (-1 or +1)
+// scrollBatchConfirm moves the Changes column by delta, up to the last line.
+// It measures with the renderer's own builders: a separate line count and a
+// height guessed from the terminal stopped it about nine lines short, so the
+// last tickets could never be seen.
 func (m *Model) scrollBatchConfirm(delta int) {
-	visibleHeight := m.height - 10
-	if visibleHeight < 10 {
-		visibleHeight = 10
-	}
-	maxScroll := m.batchConfirmContentLines() - visibleHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-
-	m.batch.confirmScroll += delta
-	if m.batch.confirmScroll < 0 {
-		m.batch.confirmScroll = 0
-	}
-	if m.batch.confirmScroll > maxScroll {
-		m.batch.confirmScroll = maxScroll
-	}
+	_, _, available := m.chrome()
+	_, leftHeight := m.batchConfirmLeft(available)
+	maxScroll := max(len(m.batchConfirmRightLines())-batchConfirmContentHeight(leftHeight), 0)
+	m.batch.confirmScroll = min(max(m.batch.confirmScroll+delta, 0), maxScroll)
 }
 
 type batchRepoResult struct {
@@ -965,6 +929,70 @@ func (m Model) renderCommitsPreview(repoIdx int, width int) string {
 }
 
 func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
+	leftContent, leftHeight := m.batchConfirmLeft(availableHeight)
+	rightLines := m.batchConfirmRightLines()
+	dimStyle := ui.Dim
+
+	// Apply scrolling to right column - constrain to left column height
+	contentHeight := batchConfirmContentHeight(leftHeight)
+	totalLines := len(rightLines)
+	maxScroll := max(totalLines-contentHeight, 0)
+
+	// Clamp scroll offset
+	scrollOffset := m.batch.confirmScroll
+	if scrollOffset > maxScroll {
+		scrollOffset = maxScroll
+	}
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+
+	// Get visible window of lines with consistent height
+	var visibleLines []string
+	visibleLines = append(visibleLines, "") // Top padding
+
+	// Always reserve space for scroll up indicator
+	if scrollOffset > 0 {
+		visibleLines = append(visibleLines, dimStyle.Render("  ↑ more above"))
+	} else {
+		visibleLines = append(visibleLines, "") // Empty line to maintain height
+	}
+
+	endIdx := scrollOffset + contentHeight
+	if endIdx > totalLines {
+		endIdx = totalLines
+	}
+	if scrollOffset < totalLines {
+		visibleLines = append(visibleLines, rightLines[scrollOffset:endIdx]...)
+	}
+
+	// Pad to consistent height
+	for len(visibleLines) < contentHeight+2 {
+		visibleLines = append(visibleLines, "")
+	}
+
+	// Always reserve space for scroll down indicator
+	if endIdx < totalLines {
+		visibleLines = append(visibleLines, dimStyle.Render("  ↓ more below"))
+	} else {
+		visibleLines = append(visibleLines, "") // Empty line to maintain height
+	}
+
+	rightTitleStyle := ui.MagentaBold
+	rightContent := panel(rightTitleStyle, "Changes", visibleLines)
+
+	return ui.UnifiedPanel(leftContent, rightContent, 50, 45, ui.ColorCyan)
+}
+
+// batchConfirmContentHeight is how many Changes lines fit beside a left
+// column of leftHeight: less the title, the padding row and the two rows kept
+// for the "more above/below" indicators.
+func batchConfirmContentHeight(leftHeight int) int {
+	return max(max(leftHeight-2, 5)-2, 3)
+}
+
+// batchConfirmLeft builds the confirmation's left column, and its height.
+func (m Model) batchConfirmLeft(availableHeight int) (content string, height int) {
 	selectedCount := 0
 	for _, s := range m.batch.selected {
 		if s {
@@ -1087,9 +1115,12 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 
 	leftContent := leftTitleStyle.Render(panelTitle) + "\n" + strings.Join(leftLines, "\n")
 
-	// Calculate max height for right column to match left column height
-	leftHeight := len(leftLines) + 1 // +1 for title
+	return leftContent, len(leftLines) + 1 // +1 for title
+}
 
+// batchConfirmRightLines builds every line of the Changes column; the
+// renderer shows a window of them.
+func (m Model) batchConfirmRightLines() []string {
 	// Build right column (commits & tickets per repo) - build ALL content first
 	var rightLines []string
 
@@ -1163,68 +1194,7 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 		rightLines = append(rightLines, warningStyle.Render("  ⚠ DRY RUN MODE"))
 	}
 
-	// Apply scrolling to right column - constrain to left column height
-	visibleHeight := leftHeight - 2 // -2 for title overhead
-	if visibleHeight < 5 {
-		visibleHeight = 5
-	}
-
-	totalLines := len(rightLines)
-	maxScroll := totalLines - visibleHeight
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-
-	// Clamp scroll offset
-	scrollOffset := m.batch.confirmScroll
-	if scrollOffset > maxScroll {
-		scrollOffset = maxScroll
-	}
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
-
-	// Get visible window of lines with consistent height
-	var visibleLines []string
-	visibleLines = append(visibleLines, "") // Top padding
-
-	// Always reserve space for scroll up indicator
-	if scrollOffset > 0 {
-		visibleLines = append(visibleLines, dimStyle.Render("  ↑ more above"))
-	} else {
-		visibleLines = append(visibleLines, "") // Empty line to maintain height
-	}
-
-	// Calculate visible portion (account for indicator lines)
-	contentHeight := visibleHeight - 2 // Reserve 2 lines for indicators
-	if contentHeight < 3 {
-		contentHeight = 3
-	}
-
-	endIdx := scrollOffset + contentHeight
-	if endIdx > totalLines {
-		endIdx = totalLines
-	}
-	if scrollOffset < totalLines {
-		visibleLines = append(visibleLines, rightLines[scrollOffset:endIdx]...)
-	}
-
-	// Pad to consistent height
-	for len(visibleLines) < contentHeight+2 {
-		visibleLines = append(visibleLines, "")
-	}
-
-	// Always reserve space for scroll down indicator
-	if endIdx < totalLines {
-		visibleLines = append(visibleLines, dimStyle.Render("  ↓ more below"))
-	} else {
-		visibleLines = append(visibleLines, "") // Empty line to maintain height
-	}
-
-	rightTitleStyle := ui.MagentaBold
-	rightContent := panel(rightTitleStyle, "Changes", visibleLines)
-
-	return ui.UnifiedPanel(leftContent, rightContent, 50, 45, ui.ColorCyan)
+	return rightLines
 }
 
 func (m Model) renderBatchProcessing() string {
