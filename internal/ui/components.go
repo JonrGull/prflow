@@ -344,6 +344,19 @@ func ColumnBox(content string, title string, color lipgloss.TerminalColor, isAct
 		fullContent = content
 	}
 
+	// With no fixed height, still cut lines to the width rather than let the
+	// border wrap them: callers count one row per line (the pinned Actions
+	// panels scroll by that count), and a wrapped line broke it.
+	if height <= 0 {
+		lines := strings.Split(fullContent, "\n")
+		for i, line := range lines {
+			if lipgloss.Width(line) > width {
+				lines[i] = lipgloss.NewStyle().MaxWidth(width).Render(line)
+			}
+		}
+		fullContent = strings.Join(lines, "\n")
+	}
+
 	// Manually pad/truncate to fixed height and prevent line wrapping
 	if height > 0 {
 		lines := strings.Split(fullContent, "\n")

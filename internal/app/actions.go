@@ -75,6 +75,8 @@ func (m *Model) unpinRun(runID uint64) bool {
 			if m.actions.pinnedIndex >= len(m.actions.pinned) && m.actions.pinnedIndex > 0 {
 				m.actions.pinnedIndex--
 			}
+			// Or the scroll stays past the end and the column goes blank.
+			m.adjustActionsPinnedScroll()
 			return true
 		}
 	}
@@ -134,6 +136,9 @@ func (m *Model) adjustActionsPinnedScroll() {
 	if focusStart < m.actions.pinnedScroll {
 		m.actions.pinnedScroll = focusStart
 	}
+	// Never past the end: after an unpin, panelStart is the new total, and a
+	// scroll left beyond it drew an empty column.
+	m.actions.pinnedScroll = min(m.actions.pinnedScroll, max(panelStart-visibleLines, 0))
 	if m.actions.pinnedScroll < 0 {
 		m.actions.pinnedScroll = 0
 	}
@@ -191,7 +196,41 @@ type actionsJobsFetchedResult struct {
 // harmless — but a dropped one left a completed run's panel on "Loading jobs"
 // for good, since completed runs are not fetched again.
 
-func fetchActionsRunsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
+// selectActionsRuns picks the runs the list shows from one repo's recent runs:
+// every queued or running one, the newest finished one per workflow, and any
+// run that is pinned. Pinned runs used to fall to the per-workflow rule once a
+// newer run of the same workflow finished, and their panel froze.
+func selectActionsRuns(runs []models.WorkflowRun, cutoff time.Time, pinned map[uint64]bool) []models.WorkflowRun {
+	var kept []models.WorkflowRun
+	latestCompleted := map[string]bool{} // workflowName -> already added
+	for _, run := range runs {
+		switch {
+		case pinned[run.DatabaseID]:
+			kept = append(kept, run)
+			if run.Status == "completed" {
+				latestCompleted[run.WorkflowName] = true
+			}
+		case run.UpdatedAt.Before(cutoff):
+		case run.Status == "in_progress" || run.Status == "queued":
+			kept = append(kept, run)
+		case run.Status == "completed" && !latestCompleted[run.WorkflowName]:
+			kept = append(kept, run)
+			latestCompleted[run.WorkflowName] = true
+		}
+	}
+	return kept
+}
+
+// pinnedRunIDs is the set of pinned runs, which the fetch always keeps.
+func (m Model) pinnedRunIDs() map[uint64]bool {
+	ids := map[uint64]bool{}
+	for _, p := range m.actions.pinned {
+		ids[p.Run.DatabaseID] = true
+	}
+	return ids
+}
+
+func fetchActionsRunsCmd(cfg *config.Config, dryRun bool, pinned map[uint64]bool) tea.Cmd {
 	return func() tea.Msg {
 		if dryRun {
 			return dryRunActionsRuns()
@@ -233,18 +272,8 @@ func fetchActionsRunsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 				repoErrors = append(repoErrors, fmt.Sprintf("%s: %v", res.repo.DisplayName, res.err))
 				continue
 			}
-			// Keep in-progress/queued runs + latest completed per workflow (within 48h)
-			latestCompleted := map[string]bool{} // workflowName -> already added
-			for _, run := range res.runs {
-				if run.UpdatedAt.Before(cutoff) {
-					continue
-				}
-				if run.Status == "in_progress" || run.Status == "queued" {
-					entries = append(entries, actionsEntry{Repo: res.repo, Run: run})
-				} else if run.Status == "completed" && !latestCompleted[run.WorkflowName] {
-					entries = append(entries, actionsEntry{Repo: res.repo, Run: run})
-					latestCompleted[run.WorkflowName] = true
-				}
+			for _, run := range selectActionsRuns(res.runs, cutoff, pinned) {
+				entries = append(entries, actionsEntry{Repo: res.repo, Run: run})
 			}
 		}
 
@@ -324,7 +353,7 @@ func (m Model) handleActionsRunsFetched(msg actionsRunsFetchedResult) (tea.Model
 	for i, panel := range m.actions.pinned {
 		for _, entry := range msg.entries {
 			if entry.Run.DatabaseID == panel.Run.DatabaseID {
-				if entry.Run.Status != panel.Run.Status || entry.Run.Status == "in_progress" || entry.Run.Status == "queued" {
+				if entry.Run.Status != panel.Run.Status || entry.Run.Status == "in_progress" || entry.Run.Status == "queued" || panel.Jobs == nil {
 					refreshCmds = append(refreshCmds, fetchActionsJobsCmd(entry.Repo.Path, entry.Run.DatabaseID, m.dryRun))
 				}
 				m.actions.pinned[i].Run = entry.Run
@@ -346,12 +375,13 @@ func (m Model) handleActionsRefreshTick(msg actionsRefreshTickMsg) (tea.Model, t
 		return m, next // the last fetch is still out; skip this round
 	}
 	m.actions.loading = true
-	return m, tea.Batch(next, fetchActionsRunsCmd(m.config, m.dryRun))
+	return m, tea.Batch(next, fetchActionsRunsCmd(m.config, m.dryRun, m.pinnedRunIDs()))
 }
 
 func (m Model) handleActionsJobsFetched(msg actionsJobsFetchedResult) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
-		m.unpinRun(msg.runID)
+		// Kept pinned: its jobs are still missing, so the next refresh asks
+		// again. One failed fetch used to unpin the run without a word.
 		return m, nil
 	}
 	for i, p := range m.actions.pinned {
@@ -424,11 +454,21 @@ func (m Model) handleActionsOverviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyLeft:
 		// no-op, already in left column
 	case tea.KeyRight:
-		if len(m.actions.pinned) > 0 {
+		// Not while typing a filter: the right column has no filter, and its
+		// q and Esc mean something else there.
+		if len(m.actions.pinned) > 0 && !m.actions.filterActive {
 			m.actions.column = 1
 			m.actions.pinnedIndex = 0
 		}
 	case tea.KeySpace:
+		// bubbletea sends Space as its own key, not as a rune, so the filter
+		// has to take it here or it pins a run mid-word.
+		if m.actions.filterActive {
+			m.actions.filter += " "
+			m.actions.index = 0
+			m.actions.runScroll = 0
+			return m, nil
+		}
 		if m.actions.index >= len(filtered) {
 			return m, nil
 		}
@@ -492,6 +532,7 @@ func (m Model) handleActionsOverviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "n":
 			m.actions.pinned = nil
 			m.actions.pinnedIndex = 0
+			m.actions.pinnedScroll = 0
 		case "o":
 			if m.actions.index < len(filtered) {
 				entry := m.actions.entries[filtered[m.actions.index]]

@@ -111,7 +111,7 @@ func (m Model) selectMainMenuItem() (tea.Model, tea.Cmd) {
 		m.actions.loading = true
 		m.screen = ScreenLoading
 		m.loadingMessage = "Fetching workflow runs..."
-		return m, fetchActionsRunsCmd(m.config, m.dryRun)
+		return m, fetchActionsRunsCmd(m.config, m.dryRun, nil)
 	case 5: // Quit
 		m.shouldQuit = true
 		return m, tea.Quit
