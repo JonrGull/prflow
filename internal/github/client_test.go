@@ -94,7 +94,7 @@ func fakeGh(t *testing.T, out string, code int) (args func() string) {
 	}
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
-	script := fmt.Sprintf("#!/bin/sh\necho \"$@\" > %q\nprintf '%%s' %q\nexit %d\n", argsFile, out, code)
+	script := fmt.Sprintf("#!/bin/sh\necho \"$@\" > %q\nprintf '%%b' %q\nexit %d\n", argsFile, out, code)
 	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +147,8 @@ func fakeGhAuth(t *testing.T, tokenOut string, tokenCode int, statusOut string, 
 	dir := t.TempDir()
 	script := fmt.Sprintf(`#!/bin/sh
 case "$1 $2" in
-  "auth token") printf '%%s' %q; exit %d ;;
-  "auth status") printf '%%s' %q; exit %d ;;
+  "auth token") printf '%%b' %q; exit %d ;;
+  "auth status") printf '%%b' %q; exit %d ;;
 esac
 exit 2
 `, tokenOut, tokenCode, statusOut, statusCode)
@@ -190,5 +190,19 @@ func TestCheckAuth(t *testing.T) {
 				t.Errorf("user = %q, want %q", user, tc.wantUser)
 			}
 		})
+	}
+}
+
+// gh pr create warns about uncommitted changes on stderr, and the output is
+// read combined, so the URL came back with the warning glued to the front:
+// open-in-browser, copy-as-markdown and the history all broke.
+func TestCreatePRFindsTheURLAmongWarnings(t *testing.T) {
+	fakeGh(t, "Warning: 2 uncommitted changes\nhttps://github.com/acme/web/pull/12\n", 0)
+	pr, err := CreatePR(t.TempDir(), "dev", "staging", "t", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pr.URL != "https://github.com/acme/web/pull/12" || pr.Number != 12 {
+		t.Errorf("got URL %q number %d", pr.URL, pr.Number)
 	}
 }

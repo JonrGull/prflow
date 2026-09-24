@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -75,6 +76,9 @@ func GetExistingPR(repoPath, headBranch, baseBranch string) (*models.GhPr, error
 	return &prs[0], nil
 }
 
+// prURLPattern matches a pull request URL, capturing its number.
+var prURLPattern = regexp.MustCompile(`https?://\S+/pull/(\d+)`)
+
 // CreatePR creates a new pull request
 func CreatePR(repoPath, headBranch, baseBranch, title, body string) (*models.GhPr, error) {
 	output, err := run.Combined(run.Network, repoPath, "gh", "pr", "create",
@@ -86,15 +90,15 @@ func CreatePR(repoPath, headBranch, baseBranch, title, body string) (*models.GhP
 		return nil, fmt.Errorf("gh pr create failed: %s", string(output))
 	}
 
-	// gh pr create outputs the URL
-	url := strings.TrimSpace(string(output))
-
-	// Extract PR number from URL (e.g., https://github.com/org/repo/pull/123)
-	parts := strings.Split(url, "/")
-	var number uint64
-	if len(parts) > 0 {
-		number, _ = strconv.ParseUint(parts[len(parts)-1], 10, 64)
+	// gh prints the URL, but the output is read combined, and gh also warns on
+	// stderr (about uncommitted changes, say). Taking the whole output as the
+	// URL broke every link to the new PR, so find the URL in it.
+	m := prURLPattern.FindStringSubmatch(string(output))
+	if m == nil {
+		return nil, fmt.Errorf("gh pr create printed no PR URL: %s", strings.TrimSpace(string(output)))
 	}
+	url := m[0]
+	number, _ := strconv.ParseUint(m[1], 10, 64)
 
 	return &models.GhPr{
 		Number: number,
