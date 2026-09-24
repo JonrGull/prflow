@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -25,6 +26,10 @@ const (
 	// downloading a release binary.
 	Slow = 5 * time.Minute
 )
+
+// waitDelay is how long a command's output may be waited on once it has exited
+// or been killed. A variable so tests can shorten it.
+var waitDelay = 2 * time.Second
 
 // TimeoutError reports a command killed by its deadline. It is distinguished
 // from an ordinary non-zero exit so callers can tell the user the difference
@@ -67,6 +72,13 @@ func exec_(timeout time.Duration, dir, stdin string, combined bool, name string,
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	isolate(cmd)
+	// Backstop for isolate: stop waiting on the output pipes this long after the
+	// kill, whatever still holds them.
+	cmd.WaitDelay = waitDelay
+	// git's own credential prompt, for HTTPS remotes, would ask on the TUI's
+	// terminal; make it fail instead.
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -86,6 +98,11 @@ func exec_(timeout time.Duration, dir, stdin string, combined bool, name string,
 	// find out whether the deadline was the real cause.
 	if ctx.Err() == context.DeadlineExceeded {
 		return out, &TimeoutError{Name: describe(name, args), Timeout: timeout}
+	}
+	// The command finished and succeeded; something it left running in the
+	// background kept the pipe open. That is not the command failing.
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil
 	}
 	return out, err
 }
