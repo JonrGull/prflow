@@ -33,13 +33,6 @@ func listKey(m Model, s string) Model {
 	return next.(Model)
 }
 
-func typeInto(m Model, s string) Model {
-	for _, r := range s {
-		m = listKey(m, string(r))
-	}
-	return m
-}
-
 func TestListEditorLoadsAndStores(t *testing.T) {
 	m := listModel(t, listGlobs)
 	if m.screen != ScreenListEdit {

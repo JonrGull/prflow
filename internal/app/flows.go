@@ -47,18 +47,6 @@ func (m Model) flows() []models.Flow {
 	return m.config.FlowEntries()
 }
 
-// flowIndex reports which configured step a PR belongs to, or -1 if the config
-// changed since the PR list was built. Flow is a plain comparable struct, so
-// this is an equality check rather than an identity one.
-func flowIndex(flows []models.Flow, flow models.Flow) int {
-	for i, f := range flows {
-		if f == flow {
-			return i
-		}
-	}
-	return -1
-}
-
 // chainBranches lists every branch the release chain touches, in order: each
 // step's head, then the final step's base, with the @default token resolved to
 // the current repo's default branch. For the default two-step chain that is

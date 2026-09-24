@@ -153,24 +153,6 @@ func GetOpenReleasePRs(repoPath string, flows []models.Flow, defaultBranch strin
 	return status, nil
 }
 
-// ListOpenPRs lists all open PRs for a repo
-func ListOpenPRs(repoPath string, limit int) ([]models.GhPr, error) {
-	output, err := run.Combined(run.Network, repoPath, "gh", "pr", "list",
-		"--state", "open",
-		"--json", "number,url,title,state,body,isDraft,author,headRefName,baseRefName,statusCheckRollup,comments,reviews,latestReviews,reviewRequests,commits",
-		"--limit", strconv.Itoa(limit))
-	if err != nil {
-		return nil, fmt.Errorf("gh pr list failed: %s", string(output))
-	}
-
-	var prs []models.GhPr
-	if err := json.Unmarshal(output, &prs); err != nil {
-		return nil, fmt.Errorf("failed to parse gh pr list output: %w", err)
-	}
-
-	return prs, nil
-}
-
 // SearchAllOpenPRs fetches all open PRs across multiple repos in a single GraphQL query.
 // Returns a map from NWO (owner/repo) to PRs.
 func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
