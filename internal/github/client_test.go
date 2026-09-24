@@ -206,3 +206,75 @@ func TestCreatePRFindsTheURLAmongWarnings(t *testing.T) {
 		t.Errorf("got URL %q number %d", pr.URL, pr.Number)
 	}
 }
+
+// --head matches the branch name whatever the owner, so on a public repo a
+// fork's dev -> staging PR was taken for the release PR: its body got
+// rewritten and it was offered for merging.
+func TestExistingPRIgnoresForks(t *testing.T) {
+	args := fakeGh(t, `[{"number":9,"isCrossRepository":true},{"number":4,"isCrossRepository":false}]`, 0)
+	pr, err := GetExistingPR(t.TempDir(), "dev", "staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pr == nil || pr.Number != 4 {
+		t.Errorf("got %+v, want #4, the one from this repo", pr)
+	}
+	if !strings.Contains(args(), "isCrossRepository") {
+		t.Errorf("gh %s: want isCrossRepository requested", args())
+	}
+
+	fakeGh(t, `[{"number":9,"isCrossRepository":true}]`, 0)
+	if pr, _ := GetExistingPR(t.TempDir(), "dev", "staging"); pr != nil {
+		t.Errorf("got fork PR #%d as the release PR", pr.Number)
+	}
+}
+
+// A remote reaching github.com through an SSH alias failed to parse, and the
+// repo dropped out of All PRs and Actions.
+func TestNWOFromRemote(t *testing.T) {
+	orig := sshHostname
+	t.Cleanup(func() { sshHostname = orig })
+	sshHostname = func(alias string) string {
+		return map[string]string{"github-work": "github.com", "ghe": "ghe.corp.example"}[alias]
+	}
+	cases := map[string]string{
+		"https://github.com/acme/web.git":         "acme/web",
+		"https://user:tok@github.com/acme/web":    "acme/web",
+		"git@github.com:acme/web.git":             "acme/web",
+		"ssh://git@github.com/acme/web.git":       "acme/web",
+		"git@github-work:acme/web.git":            "acme/web",
+		"ssh://git@github-work/acme/web":          "acme/web",
+		"git@ghe:acme/web.git":                    "", // an Enterprise host is not github.com
+		"https://github.example.com/acme/web.git": "",
+		"https://github-work/acme/web":            "", // aliases are an SSH thing
+		"git@github.com:acme/web/extra":           "",
+	}
+	for remote, want := range cases {
+		got, err := nwoFromRemote(remote)
+		if want == "" {
+			if err == nil {
+				t.Errorf("%s: got %q, want refused", remote, got)
+			}
+			continue
+		}
+		if err != nil || got != want {
+			t.Errorf("%s: got %q, %v; want %q", remote, got, err, want)
+		}
+	}
+}
+
+// The resolver reads ssh -G's "hostname" line, driven here by a fake ssh.
+func TestSSHHostnameReadsSSHConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sh")
+	}
+	dir := t.TempDir()
+	script := "#!/bin/sh\n[ \"$1\" = -G ] && printf 'user git\\nhostname github.com\\nport 22\\n'\n"
+	if err := os.WriteFile(filepath.Join(dir, "ssh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if got := sshHostname("github-work"); got != "github.com" {
+		t.Errorf("sshHostname = %q, want github.com", got)
+	}
+}

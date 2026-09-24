@@ -51,6 +51,7 @@ type GhPr struct {
 	IsDraft           bool            `json:"isDraft"`
 	HeadBranch        string          `json:"headRefName"`
 	HeadSHA           string          `json:"headRefOid"`
+	IsCrossRepository bool            `json:"isCrossRepository"` // opened from a fork
 	BaseBranch        string          `json:"baseRefName"`
 	StatusCheckRollup []CheckRun      `json:"statusCheckRollup"`
 	Comments          []PrComment     `json:"comments"`

@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	neturl "net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -59,7 +60,7 @@ func GetExistingPR(repoPath, headBranch, baseBranch string) (*models.GhPr, error
 		"--head", headBranch,
 		"--base", baseBranch,
 		"--state", "open",
-		"--json", "number,url,title,state,body,headRefOid")
+		"--json", "number,url,title,state,body,headRefOid,isCrossRepository")
 	if err != nil {
 		return nil, fmt.Errorf("gh pr list failed: %s", string(output))
 	}
@@ -69,11 +70,15 @@ func GetExistingPR(repoPath, headBranch, baseBranch string) (*models.GhPr, error
 		return nil, fmt.Errorf("failed to parse gh pr list output: %w", err)
 	}
 
-	if len(prs) == 0 {
-		return nil, nil
+	// --head matches the branch name whatever the owner. A fork's dev ->
+	// staging PR is not the release PR, and used to be taken for it: edited,
+	// and offered for merging.
+	for i := range prs {
+		if !prs[i].IsCrossRepository {
+			return &prs[i], nil
+		}
 	}
-
-	return &prs[0], nil
+	return nil, nil
 }
 
 // prURLPattern matches a pull request URL, capturing its number.
@@ -512,15 +517,61 @@ func GetRepoNWO(repoPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("git remote get-url failed: %w", err)
 	}
-	url := strings.TrimSpace(string(output))
-	url = strings.TrimSuffix(url, ".git")
-	if idx := strings.Index(url, "github.com:"); idx >= 0 {
-		return url[idx+len("github.com:"):], nil
+	return nwoFromRemote(strings.TrimSpace(string(output)))
+}
+
+// nwoFromRemote returns owner/repo for a github.com remote, including one
+// that reaches github.com through an SSH host alias (git@github-work:o/r, the
+// usual setup for a second account). Those used to fail, and the repo dropped
+// out of All PRs and Actions. Other hosts are refused rather than guessed: a
+// GitHub Enterprise repo is not the github.com repo of the same name.
+func nwoFromRemote(remote string) (string, error) {
+	host, path, viaSSH := splitRemote(remote)
+	if host != "github.com" && !(viaSSH && host != "" && sshHostname(host) == "github.com") {
+		return "", fmt.Errorf("cannot parse NWO from remote URL: %s", remote)
 	}
-	if idx := strings.Index(url, "github.com/"); idx >= 0 {
-		return url[idx+len("github.com/"):], nil
+	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
+	if parts := strings.Split(path, "/"); len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", fmt.Errorf("cannot parse NWO from remote URL: %s", remote)
 	}
-	return "", fmt.Errorf("cannot parse NWO from remote URL: %s", url)
+	return path, nil
+}
+
+// splitRemote splits a git remote into its host and path, and says whether
+// it is reached over SSH, where the host may be an alias.
+func splitRemote(remote string) (host, path string, viaSSH bool) {
+	if strings.Contains(remote, "://") {
+		u, err := neturl.Parse(remote)
+		if err != nil {
+			return "", "", false
+		}
+		return u.Hostname(), u.Path, u.Scheme == "ssh"
+	}
+	// scp-like: [user@]host:path
+	colon := strings.IndexByte(remote, ':')
+	if colon < 0 {
+		return "", "", false
+	}
+	host = remote[:colon]
+	if at := strings.LastIndexByte(host, '@'); at >= 0 {
+		host = host[at+1:]
+	}
+	return host, remote[colon+1:], true
+}
+
+// sshHostname resolves an SSH host alias through the user's ssh config: ssh -G
+// prints the effective settings without connecting. A var so tests can stub it.
+var sshHostname = func(alias string) string {
+	out, err := run.Output(run.Local, "", "ssh", "-G", alias)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if v, ok := strings.CutPrefix(line, "hostname "); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // The PR body markers. prflow owns only the text between them, so a
