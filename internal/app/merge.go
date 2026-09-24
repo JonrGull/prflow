@@ -230,6 +230,11 @@ func (m Model) finishMerging() (tea.Model, tea.Cmd) {
 	}
 	m.tickets = tickets
 
+	// The list is out of date now: the PRs just merged are no longer open.
+	// Dropping it makes a return to the Release PRs tab fetch again, rather
+	// than show them still ticked, ready to be merged a second time.
+	m.merge.openPRs = nil
+
 	if m.shouldShowQaTagScreen() {
 		cmd := m.initQaTagState()
 		m.screen = ScreenQaTagSelect
