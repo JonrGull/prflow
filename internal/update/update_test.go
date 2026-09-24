@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -151,5 +152,30 @@ func TestInstallVerifiesTheChecksum(t *testing.T) {
 				t.Errorf("binary was replaced with %q despite the failed check", got)
 			}
 		})
+	}
+}
+
+// CheckForUpdate took the first row of gh release list, which includes
+// drafts (visible to the repo owner) and pre-releases. gh release view with
+// no tag is GitHub's latest release, which excludes both.
+func TestCheckForUpdateUsesTheLatestRelease(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sh")
+	}
+	dir := t.TempDir()
+	script := `#!/bin/sh
+case "$1 $2" in
+  "release view") printf '{"tagName":"v9.9.9"}' ;;
+  *) echo "unexpected: $*" >&2; exit 2 ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	rel, err := CheckForUpdate("v1.0.0", "owner/repo")
+	if err != nil || rel == nil || rel.TagName != "v9.9.9" {
+		t.Errorf("got %+v, %v; want v9.9.9", rel, err)
 	}
 }

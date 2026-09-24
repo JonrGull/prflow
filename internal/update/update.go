@@ -22,26 +22,25 @@ type Release struct {
 
 // CheckForUpdate queries GitHub releases and returns latest if newer than current
 func CheckForUpdate(currentVersion, repo string) (*Release, error) {
-	// Use gh CLI to get latest release
-	output, err := run.Output(run.Network, "", "gh", "release", "list",
+	// GitHub's latest release: gh release view with no tag. It used to take
+	// the first row of gh release list, which includes drafts (visible to
+	// the repo owner) and pre-releases, so either could be offered as an
+	// update.
+	output, err := run.Output(run.Network, "", "gh", "release", "view",
 		"--repo", repo,
 		"--json", "tagName",
-		"--limit", "1",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("gh release list failed: %w", err)
+		return nil, fmt.Errorf("gh release view failed: %w", err)
 	}
 
-	var releases []Release
-	if err := json.Unmarshal(output, &releases); err != nil {
-		return nil, fmt.Errorf("failed to parse releases: %w", err)
+	latest := &Release{}
+	if err := json.Unmarshal(output, latest); err != nil {
+		return nil, fmt.Errorf("failed to parse release: %w", err)
 	}
-
-	if len(releases) == 0 {
+	if latest.TagName == "" {
 		return nil, nil
 	}
-
-	latest := &releases[0]
 
 	// Compare versions - strip 'v' or 'prflow/v' prefix for comparison
 	latestVer := normalizeVersion(latest.TagName)
