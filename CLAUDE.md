@@ -149,8 +149,11 @@ list. Home is also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` c
   (pipeline and the middle row go, Start never does). It is handed
   `unboxedHeight()`, the room a full-layout screen really has, computed the way
   `View` spends it rather than from `chrome`'s floored figure: at 80 columns
-  the footer wraps to four rows, and the floor made Home overflow at 80x19. It
-  is in `heightAwareScreens`, so a layout that overflows fails the height test.
+  the footer wraps to four rows, and the floor made Home overflow at 80x19. The
+  boxed height-aware screens (settings, list editor, history) get
+  `boxedHeight()`, the same figure less the box's four rows; the list editor
+  overflowed 80x19 the same way. The height test runs every `heightAwareScreens`
+  case at 80 and 120 columns, normal and fullscreen.
 
 **Animation tick:** the 80ms tick chain stops when `needsAnimation()` is false and `Update` restarts it when state changes. If you add something that animates on an otherwise-static screen, add it to `needsAnimation()` or it will appear frozen.
 

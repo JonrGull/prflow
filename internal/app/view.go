@@ -50,6 +50,12 @@ func (m Model) unboxedHeight() int {
 	return room
 }
 
+// boxedHeight is the room inside the outer box, from the same arithmetic: the
+// box takes its two borders and two padding rows.
+func (m Model) boxedHeight() int {
+	return max(m.unboxedHeight()-2-2*outerBoxPadding, 1)
+}
+
 // isFullLayoutScreen reports whether a screen draws its own frame rather than
 // sitting inside the outer box.
 func isFullLayoutScreen(s Screen) bool {
@@ -388,7 +394,7 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 	case ScreenUpdating:
 		return m.renderUpdating()
 	case ScreenSessionHistory:
-		return m.renderSessionHistory(availableHeight)
+		return m.renderSessionHistory(m.boxedHeight())
 	case ScreenPullBranchSelect:
 		return m.renderPullBranchSelect()
 	case ScreenPullProgress:
@@ -402,11 +408,11 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 	case ScreenQaTagSelect:
 		return m.renderQaTagSelect()
 	case ScreenSettings:
-		return m.renderSettingsWithHeight(availableHeight)
+		return m.renderSettingsWithHeight(m.boxedHeight())
 	case ScreenFirstRun:
 		return m.renderFirstRun()
 	case ScreenListEdit:
-		return m.renderListEditWithHeight(availableHeight)
+		return m.renderListEditWithHeight(m.boxedHeight())
 	default:
 		return ""
 	}

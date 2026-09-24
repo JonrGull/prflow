@@ -155,13 +155,20 @@ func TestScreensFitTheirHeight(t *testing.T) {
 			// already fill the terminal and minContentHeight forces a floor of
 			// content on top, so overflow there is the documented behaviour
 			// rather than a bug — fullscreen (F) is the answer on a tiny window.
-			for _, h := range []int{minTerminalHeight, 30, 40, 60} {
-				m := tc.model
-				m.width, m.height = 120, h
-				m.screen = tc.screen
+			// At 80 columns the footer wraps to more rows, which is where a
+			// screen handed chrome's floored height overflowed; fullscreen has no
+			// header, which chrome's figure charged for anyway.
+			for _, full := range []bool{false, true} {
+				for _, w := range []int{80, 120} {
+					for _, h := range []int{minTerminalHeight, 24, 30, 40, 60} {
+						m := tc.model
+						m.width, m.height, m.fullscreen = w, h, full
+						m.screen = tc.screen
 
-				if got := lipgloss.Height(m.View()); got > h {
-					t.Errorf("terminal height %d: rendered %d lines, overflowing by %d", h, got, got-h)
+						if got := lipgloss.Height(m.View()); got > h {
+							t.Errorf("terminal %dx%d fullscreen %v: rendered %d lines, overflowing by %d", w, h, full, got, got-h)
+						}
+					}
 				}
 			}
 		})

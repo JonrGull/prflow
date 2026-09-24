@@ -226,19 +226,6 @@ func TestHomeIsATab(t *testing.T) {
 	}
 }
 
-// At 80 columns the footer wraps to four rows, and Home was handed chrome's
-// floored height: at 80x19 it drew two rows more than the terminal has.
-func TestHomeFitsAShortNarrowTerminal(t *testing.T) {
-	m := staleModel(ScreenMainMenu)
-	m.home = homeState{data: dryRunHomeData(m.flows()), loaded: true, fetchedAt: timeNow()}
-	for h := minTerminalHeight; h <= 24; h++ {
-		m.width, m.height = 80, h
-		if got := lipgloss.Height(m.View()); got > h {
-			t.Errorf("80x%d: rendered %d lines", h, got)
-		}
-	}
-}
-
 // The pipeline is drawn from whatever chain is configured. A loop, a repeated
 // step and a single step must still render inside the frame.
 func TestPipelineDrawsOddChains(t *testing.T) {
