@@ -87,10 +87,7 @@ func (m Model) View() string {
 
 	header, statusBar, availableHeight := m.chrome()
 
-	var sections []string
-	if header != "" {
-		sections = append(sections, header)
-	}
+	var content string
 	if boxed {
 		outerBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -98,18 +95,28 @@ func (m Model) View() string {
 			Width(contentWidth).
 			Padding(outerBoxPadding, 2)
 
-		sections = append(sections, outerBox.Render(m.renderContentWithHeight(availableHeight)))
+		content = outerBox.Render(m.renderContentWithHeight(availableHeight))
 	} else {
-		sections = append(sections, m.renderContentWithHeight(availableHeight))
+		content = m.renderContentWithHeight(availableHeight)
 	}
-	body := strings.Join(sections, "\n")
 
-	// The footer sits on the bottom row rather than straight under the content,
-	// so it does not float halfway up a short screen. At least one blank line
-	// always separates them, which is the row chrome() charges for.
+	// The header keeps the top row and the footer the bottom one. A screen
+	// shorter than the space between them is centred in it, rather than left
+	// under the header with the spare rows piled above the footer. At least one
+	// blank line always separates content and footer: the row chrome() charges.
+	spare := m.height - lipgloss.Height(content) - lipgloss.Height(statusBar)
+	if header != "" {
+		spare -= lipgloss.Height(header)
+	}
+	above := max(spare-1, 0) / 2
+	below := max(spare-above, 1)
+
+	body := strings.Repeat("\n", above) + content
+	if header != "" {
+		body = header + "\n" + body
+	}
 	if statusBar != "" {
-		gap := max(m.height-lipgloss.Height(body)-lipgloss.Height(statusBar), 1)
-		body += strings.Repeat("\n", gap+1) + statusBar
+		body += strings.Repeat("\n", below+1) + statusBar
 	}
 
 	// Center horizontally in the terminal
