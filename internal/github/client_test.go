@@ -282,7 +282,7 @@ func TestSSHHostnameReadsSSHConfig(t *testing.T) {
 // Jobs came back in gh's default page of 30, so a big workflow's pinned
 // panel was missing jobs without saying so.
 func TestWorkflowJobsAskForAFullPage(t *testing.T) {
-	args := fakeGh(t, `{"jobs":[]}`, 0)
+	args := fakeGh(t, "HTTP/2.0 200 OK\nEtag: W/\"j\"\r\n\r\n{\"jobs\":[]}", 0)
 	if _, err := GetWorkflowRunJobsByNWO("acme/web", 7); err != nil {
 		t.Fatal(err)
 	}
@@ -348,5 +348,31 @@ func TestGetWorkflowRunByNWO(t *testing.T) {
 	}
 	if a := args(); !strings.Contains(a, "repos/acme/web/actions/runs/42") {
 		t.Errorf("gh %s", a)
+	}
+}
+
+// Polling every repo every five seconds spent the REST rate limit in about 15
+// minutes. The second request for a path carries the ETag, and a 304 answer
+// returns the stored body.
+func TestPollsAreConditionalRequests(t *testing.T) {
+	path := "repos/acme/poll/actions/runs?per_page=10"
+	fakeGh(t, "HTTP/2.0 200 OK\nEtag: W/\"abc\"\r\nX-Other: 1\r\n\r\n{\"workflow_runs\":[{\"id\":7}]}", 0)
+	if body, err := cachedGet(path); err != nil || !strings.Contains(string(body), `"id":7`) {
+		t.Fatalf("first fetch: %q, %v", body, err)
+	}
+
+	// gh exits 1 on a 304 but still prints the status line.
+	args := fakeGh(t, "HTTP/2.0 304 Not Modified\nEtag: W/\"abc\"\r\n\r\n", 1)
+	body, err := cachedGet(path)
+	if err != nil || !strings.Contains(string(body), `"id":7`) {
+		t.Errorf("304: got %q, %v, want the stored body", body, err)
+	}
+	if a := args(); !strings.Contains(a, `If-None-Match: W/"abc"`) {
+		t.Errorf("gh %s: the second request did not send the ETag", a)
+	}
+
+	fakeGh(t, "HTTP/2.0 502 Bad Gateway\n\r\n\r\nupstream", 1)
+	if _, err := cachedGet("repos/acme/other"); err == nil {
+		t.Error("a 502 was not an error")
 	}
 }

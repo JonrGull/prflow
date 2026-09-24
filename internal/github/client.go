@@ -682,8 +682,13 @@ func ListWorkflowRuns(repoPath string, limit int) ([]models.WorkflowRun, error) 
 
 // ListWorkflowRunsByNWO fetches workflow runs via REST API using owner/repo name.
 // Avoids spawning gh run list (which uses GraphQL internally).
+// It is polled, so it is a conditional request (cachedGet).
 func ListWorkflowRunsByNWO(nwo string, limit int) ([]models.WorkflowRun, error) {
-	return listWorkflowRuns(fmt.Sprintf("repos/%s/actions/runs?per_page=%d", nwo, limit))
+	body, err := cachedGet(fmt.Sprintf("repos/%s/actions/runs?per_page=%d", nwo, limit))
+	if err != nil {
+		return nil, fmt.Errorf("gh api actions/runs failed: %s", err)
+	}
+	return parseWorkflowRuns(body)
 }
 
 // ListWorkflowRunsSince fetches the runs created since a time, up to the API's
@@ -698,7 +703,10 @@ func listWorkflowRuns(path string) ([]models.WorkflowRun, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gh api actions/runs failed: %s", string(output))
 	}
+	return parseWorkflowRuns(output)
+}
 
+func parseWorkflowRuns(output []byte) ([]models.WorkflowRun, error) {
 	var resp struct {
 		WorkflowRuns []restRun `json:"workflow_runs"`
 	}
@@ -768,13 +776,13 @@ func GetWorkflowRunJobs(repoPath string, runID uint64) ([]models.WorkflowJob, er
 }
 
 // GetWorkflowRunJobsByNWO fetches jobs via REST API using owner/repo name
+// It is polled for running runs, so it is a conditional request (cachedGet).
 func GetWorkflowRunJobsByNWO(nwo string, runID uint64) ([]models.WorkflowJob, error) {
-	output, err := run.Combined(run.Network, "", "gh", "api",
-		// GitHub's largest page: the default of 30 silently dropped jobs from
-		// bigger workflows' panels.
-		fmt.Sprintf("repos/%s/actions/runs/%d/jobs?per_page=100", nwo, runID))
+	// GitHub's largest page: the default of 30 silently dropped jobs from
+	// bigger workflows' panels.
+	output, err := cachedGet(fmt.Sprintf("repos/%s/actions/runs/%d/jobs?per_page=100", nwo, runID))
 	if err != nil {
-		return nil, fmt.Errorf("gh api actions/runs/jobs failed: %s", string(output))
+		return nil, fmt.Errorf("gh api actions/runs/jobs failed: %s", err)
 	}
 
 	// REST API uses snake_case; map to our camelCase model

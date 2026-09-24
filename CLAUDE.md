@@ -94,6 +94,8 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 
 **Adding a screen touches six places**, and missing one fails quietly: the `Screen` enum and its `String()` (`screens.go`), the `renderContentWithHeight` switch and `screenTitles` (`view.go`), the `handleKey` switch (`update.go`), and `dynamicKeyHints` or `staticKeyHints` (`keys.go`). A screen with a text input needs `isTextInputActive` too, or `?` and the tab keys steal keystrokes mid-word. Add a golden case while you are there.
 
+**Polled GitHub calls are conditional requests:** the Actions runs and jobs fetches go through `github.cachedGet`, which sends the last ETag and returns the stored body on a 304. A 304 does not count against the REST rate limit (5,000 an hour); polling 29 repos every 5 seconds without it used the limit up in about 15 minutes, after which PR creation failed too. Anything new that polls should use it; a path that changes every call (a timestamp in it) should not, since every distinct path keeps its body.
+
 **External commands:** every `gh`/`git`/clipboard/browser call goes through `internal/run`, which wraps `exec.CommandContext` with a deadline (`run.Network` 30s, `run.Local` 5s, `run.Slow` 5m). Never use `exec.Command` directly — the TUI blocks on these, so an unbounded call freezes the app.
 
 **Repo discovery is cached:** call `discoverRepos(cfg)`, not `git.FindRepos` directly. The cache keys on the config values that affect discovery, so a settings change invalidates it automatically; call `invalidateRepoCache()` for an explicit user-driven refresh.
