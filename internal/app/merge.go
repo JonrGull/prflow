@@ -134,7 +134,7 @@ func startMergingCmd(pr models.MergePrEntry, dryRun bool) tea.Cmd {
 		}
 
 		// Merge the PR
-		if err := github.MergePR(pr.Repo.Path, pr.PrNumber); err != nil {
+		if err := github.MergePR(pr.Repo.Path, pr.PrNumber, pr.HeadSHA); err != nil {
 			errStr := err.Error()
 			base.Error = &errStr
 			return mergeCompleteResult{result: base}
@@ -171,6 +171,7 @@ func (m Model) handleOpenPRsFetchedResult(msg openPRsFetchedResult) (tea.Model, 
 				URL:      fp.PR.URL,
 				PrBody:   fp.PR.Body,
 				Flow:     fp.Flow,
+				HeadSHA:  fp.PR.HeadSHA,
 			})
 		}
 	}

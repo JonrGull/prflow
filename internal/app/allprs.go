@@ -28,6 +28,7 @@ type allPRsState struct {
 	scroll      int
 	loading     bool
 	autoRefresh bool // refresh every 60s
+	refreshGen  int  // the live refresh chain; older ticks are ignored
 	sortAsc     bool // true=ascending PR number, false=descending (the default)
 }
 
@@ -54,14 +55,36 @@ type allOpenPRsFetchedResult struct {
 
 func (allOpenPRsFetchedResult) flowResult() {}
 
-type allPRsRefreshTickMsg struct{}
+type allPRsRefreshTickMsg struct{ gen int }
 
 func (allPRsRefreshTickMsg) flowResult() {}
 
-func allPRsRefreshTickCmd() tea.Cmd {
-	return tea.Tick(60*time.Second, func(_ time.Time) tea.Msg {
-		return allPRsRefreshTickMsg{}
+// startAllPRsRefresh starts a refresh chain and ends any other, as
+// startActionsRefresh does. Call it as its own statement: it changes m.
+func (m *Model) startAllPRsRefresh() tea.Cmd {
+	m.allPRs.refreshGen++
+	return allPRsTick(m.allPRs.refreshGen)
+}
+
+// A var so tests can run a tick without waiting for it.
+var allPRsRefreshEvery = 60 * time.Second
+
+func allPRsTick(gen int) tea.Cmd {
+	return tea.Tick(allPRsRefreshEvery, func(_ time.Time) tea.Msg {
+		return allPRsRefreshTickMsg{gen: gen}
 	})
+}
+
+func (m Model) handleAllPRsRefreshTick(msg allPRsRefreshTickMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != m.allPRs.refreshGen || m.screen != ScreenViewAllPrs || !m.allPRs.autoRefresh {
+		return m, nil // Stop tick chain
+	}
+	next := allPRsTick(msg.gen)
+	if m.allPRs.loading {
+		return m, next // the last fetch is still out; skip this round
+	}
+	m.allPRs.loading = true
+	return m, tea.Batch(next, fetchAllOpenPRsCmd(m.config, m.dryRun))
 }
 
 // sortAllPREntries sorts entries by repo name, then PR number (asc or desc)
@@ -185,11 +208,6 @@ func (m Model) handleAllOpenPRsFetched(msg allOpenPRsFetchedResult) (tea.Model, 
 	// Apply user's sort preference
 	sortAllPREntries(msg.entries, m.allPRs.sortAsc) // default is descending (newest first)
 
-	var cmd tea.Cmd
-	if m.allPRs.autoRefresh {
-		cmd = allPRsRefreshTickCmd()
-	}
-
 	// If already viewing, swap data in place preserving cursor position
 	if m.screen == ScreenViewAllPrs {
 		m.allPRs.entries = msg.entries
@@ -199,14 +217,14 @@ func (m Model) handleAllOpenPRsFetched(msg allOpenPRsFetchedResult) (tea.Model, 
 				m.allPRs.index = 0
 			}
 		}
-		return m, cmd
+		return m, nil
 	}
 
 	m.allPRs.entries = msg.entries
 	m.allPRs.index = 0
 	m.allPRs.scroll = 0
 	m.screen = ScreenViewAllPrs
-	return m, cmd
+	return m, nil
 }
 
 func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -237,7 +255,8 @@ func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.allPRs.autoRefresh = !m.allPRs.autoRefresh
 		if m.allPRs.autoRefresh {
-			return m, allPRsRefreshTickCmd()
+			cmd := m.startAllPRsRefresh()
+			return m, cmd
 		}
 	case "s":
 		m.allPRs.sortAsc = !m.allPRs.sortAsc

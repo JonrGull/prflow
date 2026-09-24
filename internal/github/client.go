@@ -37,7 +37,7 @@ func GetExistingPR(repoPath, headBranch, baseBranch string) (*models.GhPr, error
 		"--head", headBranch,
 		"--base", baseBranch,
 		"--state", "open",
-		"--json", "number,url,title,state,body")
+		"--json", "number,url,title,state,body,headRefOid")
 	if err != nil {
 		return nil, fmt.Errorf("gh pr list failed: %s", string(output))
 	}
@@ -586,13 +586,25 @@ func mergeBody(existing, section string) string {
 }
 
 // MergePR merges a PR using regular merge (not squash)
-func MergePR(repoPath string, prNumber uint64) error {
+//
+// headSHA is the head commit the user saw. GitHub refuses the merge if the
+// branch has moved since: without it, commits pushed after the list loaded
+// (after review, say) were merged along with the rest.
+func MergePR(repoPath string, prNumber uint64, headSHA string) error {
+	if headSHA == "" {
+		return fmt.Errorf("no head commit recorded for #%d; refresh and try again", prNumber)
+	}
 	output, err := run.Combined(run.Network, repoPath, "gh", "pr", "merge",
 		strconv.FormatUint(prNumber, 10),
 		"--merge",
+		"--match-head-commit", headSHA,
 		"--delete-branch=false")
 	if err != nil {
-		return fmt.Errorf("gh pr merge failed: %s", string(output))
+		out := strings.TrimSpace(string(output))
+		if strings.Contains(out, "Head branch was modified") {
+			return fmt.Errorf("new commits were pushed since the list loaded; refresh and review them")
+		}
+		return fmt.Errorf("gh pr merge failed: %s", out)
 	}
 
 	return nil

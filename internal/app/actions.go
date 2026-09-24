@@ -32,8 +32,9 @@ type actionsState struct {
 	repoErrors   []string // per-repo fetch errors
 	index        int      // flat index into filtered entries
 	loading      bool
-	lastRefresh  time.Time
-	autoRefresh  bool // auto-refresh every 5s (default on)
+	autoRefresh  bool      // auto-refresh every 5s (default on)
+	refreshGen   int       // the live refresh chain; older ticks are ignored
+	nextRefresh  time.Time // when that chain's next tick fires
 	filter       string
 	filterActive bool
 
@@ -175,7 +176,7 @@ type actionsRunsFetchedResult struct {
 
 func (actionsRunsFetchedResult) flowResult() {}
 
-type actionsRefreshTickMsg struct{}
+type actionsRefreshTickMsg struct{ gen int }
 
 func (actionsRefreshTickMsg) flowResult() {}
 
@@ -256,9 +257,26 @@ func fetchActionsRunsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 	}
 }
 
-func actionsRefreshTickCmd() tea.Cmd {
-	return tea.Tick(5*time.Second, func(_ time.Time) tea.Msg {
-		return actionsRefreshTickMsg{}
+// A var so tests can run a tick without waiting for it.
+var actionsRefreshEvery = 5 * time.Second
+
+// startActionsRefresh starts a refresh chain and ends any other: ticks carry
+// the generation they were started with, and only the newest one runs. Every
+// fetch result used to schedule a tick, as did the toggle and re-entering the
+// tab, so each of those added a chain and the gh calls multiplied.
+//
+// Call it as its own statement before returning m: it changes m.
+func (m *Model) startActionsRefresh() tea.Cmd {
+	m.actions.refreshGen++
+	return m.nextActionsTick()
+}
+
+// nextActionsTick schedules the live chain's next tick. Only a tick does this.
+func (m *Model) nextActionsTick() tea.Cmd {
+	gen := m.actions.refreshGen
+	m.actions.nextRefresh = timeNow().Add(actionsRefreshEvery)
+	return tea.Tick(actionsRefreshEvery, func(_ time.Time) tea.Msg {
+		return actionsRefreshTickMsg{gen: gen}
 	})
 }
 
@@ -287,10 +305,11 @@ func (m Model) handleActionsRunsFetched(msg actionsRunsFetchedResult) (tea.Model
 	}
 	m.actions.entries = msg.entries
 	m.actions.repoErrors = msg.repoErrors
-	m.actions.lastRefresh = time.Now()
+	var cmds []tea.Cmd
 	if m.screen == ScreenLoading {
 		m.screen = ScreenActionsOverview
 		m.actions.autoRefresh = true // default on for actions
+		cmds = append(cmds, m.startActionsRefresh())
 	}
 
 	// Clamp index and scroll to new filtered list size
@@ -314,20 +333,20 @@ func (m Model) handleActionsRunsFetched(msg actionsRunsFetchedResult) (tea.Model
 		}
 	}
 
-	var cmds []tea.Cmd
-	if m.screen == ScreenActionsOverview && m.actions.autoRefresh {
-		cmds = append(cmds, actionsRefreshTickCmd())
-	}
 	cmds = append(cmds, refreshCmds...)
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) handleActionsRefreshTick() (tea.Model, tea.Cmd) {
-	if m.screen != ScreenActionsOverview || !m.actions.autoRefresh {
+func (m Model) handleActionsRefreshTick(msg actionsRefreshTickMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != m.actions.refreshGen || m.screen != ScreenActionsOverview || !m.actions.autoRefresh {
 		return m, nil // Stop tick chain
 	}
+	next := m.nextActionsTick()
+	if m.actions.loading {
+		return m, next // the last fetch is still out; skip this round
+	}
 	m.actions.loading = true
-	return m, fetchActionsRunsCmd(m.config, m.dryRun)
+	return m, tea.Batch(next, fetchActionsRunsCmd(m.config, m.dryRun))
 }
 
 func (m Model) handleActionsJobsFetched(msg actionsJobsFetchedResult) (tea.Model, tea.Cmd) {
@@ -351,7 +370,8 @@ func (m Model) handleActionsOverviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyRunes && string(msg.Runes) == "R" && !m.actions.filterActive {
 		m.actions.autoRefresh = !m.actions.autoRefresh
 		if m.actions.autoRefresh {
-			return m, actionsRefreshTickCmd()
+			cmd := m.startActionsRefresh()
+			return m, cmd
 		}
 		return m, nil
 	}
@@ -538,7 +558,7 @@ func (m Model) renderActionsOverviewWithHeight(availableHeight int) string {
 		spinnerStyle := ui.Yellow
 		titleText = "GitHub Actions (last 48h) " + spinnerStyle.Render(spinner+" refreshing...")
 	} else {
-		remaining := max(5-int(timeNow().Sub(m.actions.lastRefresh).Seconds()), 0)
+		remaining := max(int(m.actions.nextRefresh.Sub(timeNow()).Round(time.Second).Seconds()), 0)
 		refreshStyle := ui.Dim
 		titleText = "GitHub Actions (last 48h) " + refreshStyle.Render(fmt.Sprintf("(refresh in %ds)", remaining))
 	}

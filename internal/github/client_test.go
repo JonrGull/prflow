@@ -2,6 +2,10 @@ package github
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -78,5 +82,57 @@ func TestGeneratePRBodyWithoutLinearOrg(t *testing.T) {
 	}
 	if GeneratePRBody(nil, "acme") != "" {
 		t.Error("no tickets should generate no section")
+	}
+}
+
+// fakeGh puts a gh on PATH that records its arguments and prints out, exiting
+// with code.
+func fakeGh(t *testing.T, out string, code int) (args func() string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sh")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	script := fmt.Sprintf("#!/bin/sh\necho \"$@\" > %q\nprintf '%%s' %q\nexit %d\n", argsFile, out, code)
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return func() string {
+		b, _ := os.ReadFile(argsFile)
+		return strings.TrimSpace(string(b))
+	}
+}
+
+// Merging by number alone merged whatever the branch held at that moment,
+// including commits pushed after the list was loaded and reviewed.
+func TestMergePinsTheHeadCommit(t *testing.T) {
+	args := fakeGh(t, "", 0)
+	if err := MergePR(t.TempDir(), 42, "abc123"); err != nil {
+		t.Fatal(err)
+	}
+	if got := args(); !strings.Contains(got, "--match-head-commit abc123") {
+		t.Errorf("gh %s: want --match-head-commit abc123", got)
+	}
+}
+
+func TestMergeExplainsAMovedHead(t *testing.T) {
+	fakeGh(t, "GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)", 1)
+	err := MergePR(t.TempDir(), 42, "abc123")
+	if err == nil || !strings.Contains(err.Error(), "new commits were pushed") {
+		t.Errorf("err = %v, want the moved-head explanation", err)
+	}
+}
+
+// With no head recorded there is nothing to pin, so it refuses rather than
+// merging unguarded.
+func TestMergeRefusesWithoutAHeadCommit(t *testing.T) {
+	args := fakeGh(t, "", 0)
+	if err := MergePR(t.TempDir(), 42, ""); err == nil {
+		t.Error("merged with no head commit to match")
+	}
+	if args() != "" {
+		t.Errorf("gh was called: %s", args())
 	}
 }

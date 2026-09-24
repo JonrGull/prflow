@@ -122,7 +122,7 @@ without all three, renders differ between runs, machines and operating systems.
 
 **Two-Column Navigation:** Batch repo select, merge, and actions views share a pattern - separate indices per column, filter functions return indices into main slice, arrow keys navigate within column, left/right switches columns.
 
-**Actions Split-Panel:** Single `ScreenActionsOverview` with left (run list) and right (pinned detail panels). Space pins/unpins runs, `/` enters filter mode, `o` opens in browser. Auto-refreshes every 5s via `actionsRefreshTickCmd` → `actionsRefreshTickMsg` tick chain. Pinned panels show job/step details, re-fetched on refresh for active runs. The tick chain is guarded to stop when navigating away. Key caveat: `adjustActionsPinnedScroll` estimates panel line heights — must stay in sync with `renderPinnedPanel` output.
+**Actions Split-Panel:** Single `ScreenActionsOverview` with left (run list) and right (pinned detail panels). Space pins/unpins runs, `/` enters filter mode, `o` opens in browser. Auto-refreshes every 5s. Pinned panels show job/step details, re-fetched on refresh for active runs. **Refresh chains (Actions, All PRs):** start one only with `startActionsRefresh`/`startAllPRsRefresh`, which bump a generation that older ticks no longer match, and only a tick schedules the next tick. Fetch results used to schedule ticks too, so a toggle, a manual refresh or a tab round trip each added a chain and the `gh` calls multiplied. The chain stops when navigating away. Key caveat: `adjustActionsPinnedScroll` estimates panel line heights — must stay in sync with `renderPinnedPanel` output.
 
 ## Configuration (`~/.config/prflow.toml`)
 

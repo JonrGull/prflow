@@ -50,6 +50,7 @@ type GhPr struct {
 	} `json:"author"`
 	IsDraft           bool            `json:"isDraft"`
 	HeadBranch        string          `json:"headRefName"`
+	HeadSHA           string          `json:"headRefOid"`
 	BaseBranch        string          `json:"baseRefName"`
 	StatusCheckRollup []CheckRun      `json:"statusCheckRollup"`
 	Comments          []PrComment     `json:"comments"`

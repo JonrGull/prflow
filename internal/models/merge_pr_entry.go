@@ -14,4 +14,7 @@ type MergePrEntry struct {
 	PrBody string
 	// Flow is the release step this PR belongs to
 	Flow Flow
+	// HeadSHA is the head commit when the PR was listed. The merge is refused
+	// if the branch has moved since, so nothing unseen gets merged.
+	HeadSHA string
 }

@@ -608,7 +608,7 @@ func populatedModel() Model {
 	}
 
 	// Actions
-	m.actions.lastRefresh = ago(2 * time.Second)
+	m.actions.nextRefresh = ago(-3 * time.Second)
 	m.actions.autoRefresh = true
 	m.actions.entries = []actionsEntry{
 		{Repo: repos[0], Run: models.WorkflowRun{DatabaseID: 900, DisplayTitle: "Deploy preview", WorkflowName: "deploy-preview", Status: "in_progress", HeadBranch: "dev", Event: "push", UpdatedAt: ago(90 * time.Second)}},

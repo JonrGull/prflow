@@ -193,11 +193,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleAllOpenPRsFetched(msg)
 
 	case allPRsRefreshTickMsg:
-		if m.screen == ScreenViewAllPrs && m.allPRs.autoRefresh && !m.allPRs.loading {
-			m.allPRs.loading = true
-			return m, fetchAllOpenPRsCmd(m.config, m.dryRun)
-		}
-		return m, nil
+		return m.handleAllPRsRefreshTick(msg)
 
 	case mergeCompleteResult:
 		return m.handleMergeCompleteResult(msg)
@@ -232,7 +228,7 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleActionsRunsFetched(msg)
 
 	case actionsRefreshTickMsg:
-		return m.handleActionsRefreshTick()
+		return m.handleActionsRefreshTick(msg)
 
 	case actionsJobsFetchedResult:
 		return m.handleActionsJobsFetched(msg)
@@ -321,7 +317,8 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 			// The old refresh chain ended with the epoch, as the Actions one
 			// below does.
 			if m.allPRs.autoRefresh {
-				return m, allPRsRefreshTickCmd()
+				cmd := m.startAllPRsRefresh()
+				return m, cmd
 			}
 			return m, nil
 		}
@@ -331,7 +328,8 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 		if len(m.actions.entries) > 0 {
 			m.screen = ScreenActionsOverview
 			if m.actions.autoRefresh {
-				return m, actionsRefreshTickCmd()
+				cmd := m.startActionsRefresh()
+				return m, cmd
 			}
 			return m, nil
 		}
