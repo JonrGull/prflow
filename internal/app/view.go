@@ -39,11 +39,15 @@ const minTerminalHeight = 19
 // the height it actually takes cannot drift apart.
 const outerBoxPadding = 1
 
-// unboxedHeight is the room a full-layout screen really has: availableHeight
-// is charged for the outer box's border and padding rows, which such a screen
-// does not draw.
-func unboxedHeight(availableHeight int) int {
-	return availableHeight + 2 + 2*outerBoxPadding
+// unboxedHeight is the room a full-layout screen has, as View spends it. chrome's
+// figure charges for the outer box and has a floor a short terminal lacks.
+func (m Model) unboxedHeight() int {
+	header, footer, _ := m.chrome()
+	room := m.height - lipgloss.Height(footer) - 1 // the blank row above the footer
+	if header != "" {
+		room -= lipgloss.Height(header)
+	}
+	return room
 }
 
 // isFullLayoutScreen reports whether a screen draws its own frame rather than
@@ -346,7 +350,7 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 
 	switch m.screen {
 	case ScreenMainMenu:
-		return m.renderHome(unboxedHeight(availableHeight))
+		return m.renderHome(m.unboxedHeight())
 	case ScreenPrTypeSelect:
 		return m.renderPrTypeSelect()
 	case ScreenLoading:

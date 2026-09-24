@@ -184,7 +184,7 @@ func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
 				... on PullRequest {
 					number url title state isDraft
 					author { login }
-					headRefName baseRefName mergeable isCrossRepository
+					headRefName baseRefName isCrossRepository
 					repository { nameWithOwner }
 					statusCheckRollup: commits(last: 1) {
 						nodes {
@@ -305,7 +305,6 @@ type searchPRNode struct {
 	} `json:"author"`
 	HeadRefName       string `json:"headRefName"`
 	BaseRefName       string `json:"baseRefName"`
-	Mergeable         string `json:"mergeable"` // MERGEABLE, CONFLICTING or UNKNOWN
 	IsCrossRepository bool   `json:"isCrossRepository"`
 	Repository        struct {
 		NameWithOwner string `json:"nameWithOwner"`
@@ -421,7 +420,6 @@ func (n searchPRNode) toGhPr() models.GhPr {
 		HeadBranch: n.HeadRefName,
 		BaseBranch: n.BaseRefName,
 
-		Mergeable:         n.Mergeable,
 		IsCrossRepository: n.IsCrossRepository,
 	}
 	pr.Author.Login = n.Author.Login
@@ -685,8 +683,18 @@ func ListWorkflowRuns(repoPath string, limit int) ([]models.WorkflowRun, error) 
 // ListWorkflowRunsByNWO fetches workflow runs via REST API using owner/repo name.
 // Avoids spawning gh run list (which uses GraphQL internally).
 func ListWorkflowRunsByNWO(nwo string, limit int) ([]models.WorkflowRun, error) {
-	output, err := run.Combined(run.Network, "", "gh", "api",
-		fmt.Sprintf("repos/%s/actions/runs?per_page=%d", nwo, limit))
+	return listWorkflowRuns(fmt.Sprintf("repos/%s/actions/runs?per_page=%d", nwo, limit))
+}
+
+// ListWorkflowRunsSince fetches the runs created since a time, up to the API's
+// page size of 100.
+func ListWorkflowRunsSince(nwo string, since time.Time) ([]models.WorkflowRun, error) {
+	return listWorkflowRuns(fmt.Sprintf("repos/%s/actions/runs?per_page=100&created=>=%s",
+		nwo, since.UTC().Format(time.RFC3339)))
+}
+
+func listWorkflowRuns(path string) ([]models.WorkflowRun, error) {
+	output, err := run.Combined(run.Network, "", "gh", "api", path)
 	if err != nil {
 		return nil, fmt.Errorf("gh api actions/runs failed: %s", string(output))
 	}

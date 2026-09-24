@@ -294,7 +294,7 @@ func TestWorkflowJobsAskForAFullPage(t *testing.T) {
 // One request compares every repo's steps. A repo missing a branch comes back
 // as a null with an error beside it, and gh exits 1, but the rest must count.
 func TestCompareBranchesKeepsWhatItCan(t *testing.T) {
-	out := `{"data":{"c0":{"ref":{"compare":{"aheadCount":14}}},"c1":{"ref":null},"c2":{"ref":{"compare":null}}},"errors":[{"message":"not found"}]}`
+	out := `{"data":{"c0":{"ref":{"compare":{"aheadBy":14}}},"c1":{"ref":null},"c2":{"ref":{"compare":null}}},"errors":[{"message":"not found"}]}`
 	args := fakeGh(t, out, 1)
 	pairs := []BranchPair{
 		{NWO: "acme/web", Base: "staging", Head: "dev"},
@@ -309,6 +309,29 @@ func TestCompareBranchesKeepsWhatItCan(t *testing.T) {
 		t.Errorf("got %v, want only acme/web at 14", got)
 	}
 	if a := args(); !strings.Contains(a, "b0=refs/heads/staging") || !strings.Contains(a, "h0=dev") || !strings.Contains(a, "o1=acme") {
+		t.Errorf("gh %s: variables not passed as expected", a)
+	}
+	// Comparison has aheadBy. The query first asked for aheadCount, which does
+	// not exist, and GitHub rejected the whole request.
+	if a := args(); !strings.Contains(a, "compare(headRef: $h0) { aheadBy }") {
+		t.Errorf("gh %s: want aheadBy", a)
+	}
+}
+
+// Merge states come from their own query, one alias per PR, with the number
+// passed as an Int. A PR GitHub cannot find is left out.
+func TestMergeStatesKeepsWhatItCan(t *testing.T) {
+	out := `{"data":{"m0":{"pullRequest":{"mergeable":"MERGEABLE","mergeStateStatus":"BLOCKED"}},"m1":{"pullRequest":null}},"errors":[{"message":"not found"}]}`
+	args := fakeGh(t, out, 1)
+	refs := []PRRef{{NWO: "acme/web", Number: 12}, {NWO: "acme/api", Number: 3}}
+	got, err := MergeStates(refs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (MergeState{Mergeable: "MERGEABLE", Status: "BLOCKED"}); len(got) != 1 || got[refs[0]] != want {
+		t.Errorf("got %v, want only acme/web#12 %v", got, want)
+	}
+	if a := args(); !strings.Contains(a, "-F p0=12") || !strings.Contains(a, "n1=api") {
 		t.Errorf("gh %s: variables not passed as expected", a)
 	}
 }

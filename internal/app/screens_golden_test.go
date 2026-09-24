@@ -407,6 +407,10 @@ func screenCases() []screenCase {
 	partial := populatedModel()
 	partial.home.data.Problems = []string{"open PRs: gh: HTTP 502", "Actions: 2 repo(s) could not be read"}
 	partial.home.data.Runs = nil
+	// Runs from some repos, and a failure in others the card must still own up to.
+	runsPartial := populatedModel()
+	runsPartial.home.data.RunErrors = 2
+	runsPartial.home.data.Problems = []string{"Actions: 2 repo(s) could not be read"}
 	quiet := populatedModel()
 	quiet.home.data = buildHomeData(quiet.flows(), nil, nil, nil, nil, fixedNow)
 	quiet.home.data.Repos = 6
@@ -420,6 +424,7 @@ func screenCases() []screenCase {
 		screenCase{"main_menu_refreshing", ScreenMainMenu, refreshing},
 		screenCase{"main_menu_failed", ScreenMainMenu, failed},
 		screenCase{"main_menu_partial", ScreenMainMenu, partial},
+		screenCase{"main_menu_runs_partial", ScreenMainMenu, runsPartial},
 		screenCase{"main_menu_all_quiet", ScreenMainMenu, quiet},
 		screenCase{"main_menu_selected", ScreenMainMenu, selected},
 		screenCase{"main_menu_narrow", ScreenMainMenu, populatedModel()},

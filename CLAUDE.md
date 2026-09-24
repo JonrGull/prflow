@@ -111,15 +111,25 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 **The Home dashboard (`home.go` data, `mainmenu.go` cards):** the main menu is
 a dashboard whose Start card is the old menu. `fetchHomeCmd` makes three
 requests for every repo at once: the open-PR search, one GraphQL branch
-comparison (`github.CompareBranches`, `Ref.compare` → `aheadCount`) and each
-repo's recent Actions runs. `buildHomeData` turns them into cards and is pure,
+comparison (`github.CompareBranches`, `Ref.compare(headRef:).aheadBy`) and each
+repo's Actions runs from the last 24 hours. Repos are deduped by owner/repo
+first, since a worktree under the repos dir is a second checkout of the same
+repo. `buildHomeData` turns them into cards and is pure,
 so tests and `--dry-run` drive it with fixtures. Its result is deliberately
 *not* a `flowResult`: it only replaces the cache, and `home.gen` drops a fetch
 that a newer one replaced. It loads on launch (not first run), on `r`, and on
-arriving home when older than `homeStaleAfter`; `applySettingsChange` bumps
-the gen and zeroes `fetchedAt`, so settings edits refetch. A source that fails
-goes into `Problems` and shows on its card instead of an empty list. Home is
-also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` cycle.
+arriving home when older than `homeStaleAfter` or after a failed fetch;
+`applySettingsChange` replaces the cache with an empty one and bumps the gen,
+so nothing from the old settings is shown and the way home refetches. A source
+that fails goes into `Problems` and shows on its card instead of an empty
+list. Home is also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` cycle.
+- **Ready to merge** needs GitHub's `mergeStateStatus` to be `CLEAN`:
+  `mergeable` only rules out conflicts, so a PR still needing a required review
+  passed it. The state is not in the open-PR search, which GitHub timed out
+  (HTTP 504) with it, since it works the state out for every PR in the page.
+  `github.MergeStates` asks for the release PRs alone, and asks once more
+  after `homeMergeStateRetry` for any GitHub answered `UNKNOWN`, which the
+  first request for a PR always gets.
 - **Cards** are `ui.Card`: shaded, borderless and exactly the size asked.
   lipgloss ends every styled span with a reset, which would punch a hole in the
   shading, so `ui.OnBackground` puts the panel colour back after each one.
@@ -128,15 +138,17 @@ also a tab: `ui.HomeTab` (-1) comes before Single in the `[`/`]` cycle.
 - **Layout** (`renderHome`): two columns from `twoColumnMinWidth`, else
   stacked. When a layout is too tall it tries a tighter one, then drops cards
   (pipeline and the middle row go, Start never does). It is handed
-  `unboxedHeight`, the room a full-layout screen really has, and it is in
-  `heightAwareScreens`, so a layout that overflows fails the height test.
+  `unboxedHeight()`, the room a full-layout screen really has, computed the way
+  `View` spends it rather than from `chrome`'s floored figure: at 80 columns
+  the footer wraps to four rows, and the floor made Home overflow at 80x19. It
+  is in `heightAwareScreens`, so a layout that overflows fails the height test.
 
 **Animation tick:** the 80ms tick chain stops when `needsAnimation()` is false and `Update` restarts it when state changes. If you add something that animates on an otherwise-static screen, add it to `needsAnimation()` or it will appear frozen.
 
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (72 cases in
+golden renders of every screen plus its interesting states (73 cases in
 `internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a

@@ -351,9 +351,12 @@ func dryRunHomeData(flows []models.Flow) homeData {
 		return []models.CheckRun{{Name: "test", Status: status, Conclusion: conclusion}}
 	}
 	passing, failing, running := check("COMPLETED", "SUCCESS"), check("COMPLETED", "FAILURE"), check("IN_PROGRESS", "")
-	pr := func(n uint64, f models.Flow, repo repoNWO, ci []models.CheckRun, mergeable string, changes bool) models.GhPr {
+	pr := func(n uint64, f models.Flow, repo repoNWO, ci []models.CheckRun, state string, changes bool) models.GhPr {
 		p := models.GhPr{Number: n, HeadBranch: f.HeadBranch(), BaseBranch: f.BaseBranch(repo.Repo.MainBranch),
-			StatusCheckRollup: ci, Mergeable: mergeable}
+			StatusCheckRollup: ci, Mergeable: "MERGEABLE", MergeStateStatus: state}
+		if state == "DIRTY" {
+			p.Mergeable = "CONFLICTING"
+		}
 		if changes {
 			p.LatestReviews = []models.PrReview{{State: "CHANGES_REQUESTED"}}
 		}
@@ -374,15 +377,15 @@ func dryRunHomeData(flows []models.Flow) homeData {
 			for j, n := range []int{5, 3, 2, 14, 1, 0} {
 				ahead[pairOf(f, repos[j])] = n
 			}
-			prs["acme/web-app"] = append(prs["acme/web-app"], pr(212, f, repos[0], failing, "MERGEABLE", false))
-			prs["acme/api-service"] = append(prs["acme/api-service"], pr(88, f, repos[1], passing, "MERGEABLE", false))
-			prs["acme/billing"] = append(prs["acme/billing"], pr(41, f, repos[2], running, "CONFLICTING", false))
-			prs["acme/admin"] = append(prs["acme/admin"], pr(19, f, repos[4], passing, "MERGEABLE", false))
+			prs["acme/web-app"] = append(prs["acme/web-app"], pr(212, f, repos[0], failing, "UNSTABLE", false))
+			prs["acme/api-service"] = append(prs["acme/api-service"], pr(88, f, repos[1], passing, "CLEAN", false))
+			prs["acme/billing"] = append(prs["acme/billing"], pr(41, f, repos[2], running, "DIRTY", false))
+			prs["acme/admin"] = append(prs["acme/admin"], pr(19, f, repos[4], passing, "CLEAN", false))
 		case 1:
 			ahead[pairOf(f, repos[0])] = 1
 			ahead[pairOf(f, repos[1])] = 2
-			prs["acme/api-service"] = append(prs["acme/api-service"], pr(90, f, repos[1], passing, "MERGEABLE", true))
-			prs["acme/web-app"] = append(prs["acme/web-app"], pr(215, f, repos[0], running, "MERGEABLE", false))
+			prs["acme/api-service"] = append(prs["acme/api-service"], pr(90, f, repos[1], passing, "BLOCKED", true))
+			prs["acme/web-app"] = append(prs["acme/web-app"], pr(215, f, repos[0], running, "BLOCKED", false))
 		default:
 			ahead[pairOf(f, repos[i%len(repos)])] = 4
 		}

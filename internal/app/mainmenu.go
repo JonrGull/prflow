@@ -366,10 +366,11 @@ func (m Model) pipelineList(inner int) []string {
 	if len(steps) > 2 {
 		shown = steps[:1]
 	}
+	captions := m.pipelineCaptions(false)
 	var lines []string
-	for _, s := range shown {
+	for i, s := range shown {
 		lines = append(lines, truncateString(ui.WhiteBold.Render(s.Flow.Display(m.mainBranch()))+"  "+
-			ui.Dim.Render(aheadText(s)+" · "+m.pipelineCaptions(false)[0]), inner))
+			ui.Dim.Render(aheadText(s)+" · "+captions[i]), inner))
 	}
 	if len(shown) < len(steps) {
 		lines = append(lines, ui.Dim.Render(fmt.Sprintf("+%d more steps", len(steps)-len(shown))))
@@ -558,15 +559,19 @@ func attentionIcon(k attentionKind) (string, lipgloss.TerminalColor) {
 func (m Model) actionsCard(width, height int) string {
 	inner := width - 4
 	rows := ui.CardRows(height)
+	meta := keyMeta("5")
 	var lines []string
 	if line, waiting := m.homeWaiting(); waiting {
 		lines = []string{line}
 	} else if len(m.home.data.Runs) == 0 {
-		lines = []string{ui.Dim.Render("No recent runs")}
+		lines = []string{ui.Dim.Render("No runs in the last 24 hours")}
 		if p, bad := m.homeProblem("Actions"); bad {
 			lines = []string{p}
 		}
 	} else {
+		if n := m.home.data.RunErrors; n > 0 {
+			meta = ui.Red.Render("✗ ") + ui.Dim.Render(fmt.Sprintf("%d repo%s unread", n, pluralS(n)))
+		}
 		// The CI history is the last row, a blank row above it when there is
 		// room for four runs as well.
 		spare := rows - 1
@@ -593,7 +598,7 @@ func (m Model) actionsCard(width, height int) string {
 		}
 		lines = append(lines, ui.Dim.Render("CI, last 24h  ")+sparkline(m.home.data.CI)+"  "+ciShare(m.home.data.CIGreen))
 	}
-	return ui.Card("Recent actions", keyMeta("5"), lines, width, height)
+	return ui.Card("Recent actions", meta, lines, width, height)
 }
 
 // shortAge is relativeTime for a narrow column: "now", "4m", "2h", "3d".

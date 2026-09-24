@@ -18,6 +18,9 @@ func TestCardIsExactlyItsSize(t *testing.T) {
 		{[]string{"a", "b"}, 8},
 		{[]string{long, long, long, long, long, long}, 8}, // too many, too wide
 		{[]string{"a", "b"}, 5},                           // short: no blank row
+		// A two-line error, such as a missing repo directory's, made the card a
+		// row taller than asked.
+		{[]string{Dim.Render("not found: ~/x\nUpdate paths.repos_dir"), "b", "c", "d"}, 8},
 	} {
 		card := Card("Title", Dim.Render("meta"), tc.lines, 40, tc.height)
 		rows := strings.Split(card, "\n")

@@ -40,7 +40,7 @@ func compareQuery(pairs []BranchPair) (string, []string) {
 		owner, name, _ := strings.Cut(p.NWO, "/")
 		params = append(params, fmt.Sprintf("$o%d: String!, $n%d: String!, $b%d: String!, $h%d: String!", i, i, i, i))
 		fields = append(fields, fmt.Sprintf(
-			"c%d: repository(owner: $o%d, name: $n%d) { ref(qualifiedName: $b%d) { compare(headRef: $h%d) { aheadCount } } }",
+			"c%d: repository(owner: $o%d, name: $n%d) { ref(qualifiedName: $b%d) { compare(headRef: $h%d) { aheadBy } } }",
 			i, i, i, i, i))
 		args = append(args,
 			"-f", fmt.Sprintf("o%d=%s", i, owner),
@@ -56,7 +56,7 @@ func parseCompare(out []byte, pairs []BranchPair) (map[BranchPair]int, error) {
 		Data map[string]*struct {
 			Ref *struct {
 				Compare *struct {
-					AheadCount int `json:"aheadCount"`
+					AheadBy int `json:"aheadBy"`
 				} `json:"compare"`
 			} `json:"ref"`
 		} `json:"data"`
@@ -76,7 +76,7 @@ func parseCompare(out []byte, pairs []BranchPair) (map[BranchPair]int, error) {
 		if repo == nil || repo.Ref == nil || repo.Ref.Compare == nil {
 			continue // a branch is missing in this repo
 		}
-		ahead[p] = repo.Ref.Compare.AheadCount
+		ahead[p] = repo.Ref.Compare.AheadBy
 	}
 	return ahead, nil
 }

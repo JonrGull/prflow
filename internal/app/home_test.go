@@ -73,6 +73,51 @@ func TestBuildHomeDataIgnoresForks(t *testing.T) {
 	}
 }
 
+// Ready asks GitHub's merge state. mergeable only rules out conflicts, so a PR
+// still needing a required review, or failing the e2e check that CI leaves to
+// its own column, was listed as ready to merge.
+func TestReadyNeedsGitHubsMergeState(t *testing.T) {
+	flow := models.Flow{Head: "dev", Base: "staging"}
+	var repos []repoNWO
+	prs := map[string][]models.GhPr{}
+	for i, state := range []string{"CLEAN", "BLOCKED", "UNSTABLE", "UNKNOWN"} {
+		nwo := fmt.Sprintf("acme/r%d", i)
+		repos = append(repos, repoNWO{Repo: models.NewRepoInfo("/"+nwo, nwo, "main", "G"), NWO: nwo})
+		prs[nwo] = []models.GhPr{{Number: 1, HeadBranch: "dev", BaseBranch: "staging", Mergeable: "MERGEABLE", MergeStateStatus: state,
+			StatusCheckRollup: []models.CheckRun{{Name: "test", Status: "COMPLETED", Conclusion: "SUCCESS"}}}}
+	}
+	d := buildHomeData([]models.Flow{flow}, repos, prs, nil, nil, time.Now())
+	if want := []string{"r0"}; !reflect.DeepEqual(d.Steps[0].Ready, want) {
+		t.Errorf("ready = %v, want only the CLEAN PR's repo %v", d.Steps[0].Ready, want)
+	}
+
+	// The merge state is asked for the release PRs alone: asking in the open-PR
+	// search, for every PR in the page, made GitHub time out.
+	prs["acme/r0"] = append(prs["acme/r0"], models.GhPr{Number: 7, HeadBranch: "feature", BaseBranch: "dev"})
+	refs := releasePRs([]models.Flow{flow}, repos, prs)
+	if _, ok := refs[github.PRRef{NWO: "acme/r0", Number: 7}]; ok || len(refs) != len(repos) {
+		t.Errorf("release PRs = %v, want one per repo and no feature PR", refs)
+	}
+}
+
+// A worktree of a repo under the repos dir shares its owner/repo; it was
+// counted as a second repo, doubling that repo's commits, PRs and runs.
+func TestWorktreeIsNotASecondRepo(t *testing.T) {
+	repo := func(path, nwo string) repoNWO {
+		return repoNWO{Repo: models.NewRepoInfo(path, path, "main", "G"), NWO: nwo}
+	}
+	got := uniqueGitHubRepos([]repoNWO{
+		repo("/web", "acme/web"), repo("/local", ""), repo("/wt-web", "acme/web"), repo("/api", "acme/api"),
+	})
+	var paths []string
+	for _, r := range got {
+		paths = append(paths, r.Repo.Path)
+	}
+	if want := []string{"/web", "/api"}; !reflect.DeepEqual(paths, want) {
+		t.Errorf("repos = %v, want %v", paths, want)
+	}
+}
+
 // Results from a fetch that a newer one replaced are ignored.
 func TestOlderHomeFetchIsIgnored(t *testing.T) {
 	m := staleModel(ScreenMainMenu)
@@ -122,8 +167,21 @@ func TestSettingsChangeInvalidatesTheDashboard(t *testing.T) {
 	if m.home.data.Repos == 99 {
 		t.Error("a fetch made under the old settings was applied")
 	}
+	if m.home.loaded {
+		t.Error("the dashboard still shows data from the old settings")
+	}
 	if !m.homeStale() {
 		t.Error("the dashboard is not due a refresh after a settings change")
+	}
+}
+
+// A failed fetch is retried on the next arrival rather than five minutes on.
+func TestArrivingHomeRetriesAFailedFetch(t *testing.T) {
+	m := staleModel(ScreenSettings)
+	m.home = homeState{err: fmt.Errorf("repo directory not found"), fetchedAt: timeNow()}
+	m = send(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if !m.home.loading {
+		t.Error("arriving home after a failed fetch did not retry")
 	}
 }
 
@@ -145,6 +203,19 @@ func TestHomeIsATab(t *testing.T) {
 	single = send(t, single, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
 	if single.screen != ScreenMainMenu {
 		t.Errorf("[ from Single went to %v, not home", single.screen)
+	}
+}
+
+// At 80 columns the footer wraps to four rows, and Home was handed chrome's
+// floored height: at 80x19 it drew two rows more than the terminal has.
+func TestHomeFitsAShortNarrowTerminal(t *testing.T) {
+	m := staleModel(ScreenMainMenu)
+	m.home = homeState{data: dryRunHomeData(m.flows()), loaded: true, fetchedAt: timeNow()}
+	for h := minTerminalHeight; h <= 24; h++ {
+		m.width, m.height = 80, h
+		if got := lipgloss.Height(m.View()); got > h {
+			t.Errorf("80x%d: rendered %d lines", h, got)
+		}
 	}
 }
 
