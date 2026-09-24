@@ -45,6 +45,7 @@ func discoverRepos(cfg *config.Config) ([]models.RepoInfo, error) {
 	}
 
 	repos, err := git.FindRepos(cfg.ReposPath(), cfg.GlobEntries(), cfg.ExplicitRepos())
+	releaseTargets(repos, cfg.FlowEntries(), git.GuessMainBranch)
 
 	repoCacheKey = key
 	repoCacheVal = repos
@@ -71,7 +72,25 @@ func repoCacheKeyFor(cfg *config.Config) string {
 	for _, r := range cfg.ExplicitRepos() {
 		key += "\x00r:" + r.Path + "=" + r.Group
 	}
+	for _, f := range cfg.FlowEntries() {
+		key += "\x00f:" + f.HeadBranch()
+	}
 	return key
+}
+
+// releaseTargets resolves @default for a repo whose default branch is one the
+// chain releases from, like dev: to main or master, since a chain that ends
+// where it starts would release staging into dev.
+func releaseTargets(repos []models.RepoInfo, flows []models.Flow, guess func(path string) string) {
+	heads := map[string]bool{}
+	for _, f := range flows {
+		heads[f.HeadBranch()] = true
+	}
+	for i := range repos {
+		if heads[repos[i].MainBranch] {
+			repos[i].MainBranch = guess(repos[i].Path)
+		}
+	}
 }
 
 // parallelMap applies fn to every item concurrently and returns the results in

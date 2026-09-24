@@ -100,6 +100,26 @@ func TestReadyNeedsGitHubsMergeState(t *testing.T) {
 	}
 }
 
+// Most of one team's repos default to dev on GitHub, and dev → staging →
+// @default then released staging into dev. A default branch the chain
+// releases from resolves to main or master instead.
+func TestDefaultBranchThatIsAChainHeadIsNotTheTarget(t *testing.T) {
+	repos := []models.RepoInfo{
+		models.NewRepoInfo("/dev-default", "G/a", "dev", "G"),
+		models.NewRepoInfo("/main-default", "G/b", "main", "G"),
+		models.NewRepoInfo("/trunk-default", "G/c", "trunk", "G"),
+	}
+	flows := []models.Flow{{Head: "dev", Base: "staging"}, {Head: "staging", Base: models.DefaultBranchToken}}
+	releaseTargets(repos, flows, func(path string) string { return "master" })
+	var got []string
+	for _, r := range repos {
+		got = append(got, r.MainBranch)
+	}
+	if want := []string{"master", "main", "trunk"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("targets = %v, want %v", got, want)
+	}
+}
+
 // A worktree of a repo under the repos dir shares its owner/repo; it was
 // counted as a second repo, doubling that repo's commits, PRs and runs.
 func TestWorktreeIsNotASecondRepo(t *testing.T) {

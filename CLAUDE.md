@@ -70,7 +70,11 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 - **Parallel discovery:** Repos fetched concurrently, PRs processed sequentially
 - **Ticket extraction:** `tickets.pattern` pulls ticket IDs out of commit messages; the default matches any `ABC-123`-style key. Letters typed literally match either case and classes like `[A-Z]` match only what they say (`compileTicketPattern`), and a match cut out of a longer word is skipped (`git.findTickets`). Highlight tickets with `git.HighlightTickets`, not the raw regex, so the screen marks what goes into the PR
 - **Release steps are config, not code:** `[[flows]]` lists the chain (`head` →
-  `base`, `base = "@default"` for the repo's own default branch). There used to
+  `base`, `base = "@default"` for the repo's own default branch). `@default` is
+  `RepoInfo.MainBranch`: origin/HEAD, except that `releaseTargets` (in
+  `discoverRepos` and the single-repo load) swaps a default that is one of the
+  chain's heads for main or master (`git.GuessMainBranch`). Most of one team's
+  repos default to `dev`, and releasing staging into dev was the result. There used to
   be a two-value `PrType` enum with `"dev"`, `"staging"` and `"main"` baked into
   its switches, which is why the tool only worked for one branching model. Every
   screen now asks `m.flows()`: the step menu lists one row per step, the open-PRs
@@ -194,7 +198,8 @@ path = '~/Projects/some-service'
 group = 'Services'
 
 # The chain a release moves through, in order. Each entry is one PR.
-# base = "@default" means the repo's own default branch (main or master).
+# base = "@default" means the repo's default branch on GitHub, unless that is
+# a branch the chain releases from (a repo defaulting to dev): then main or master.
 [[flows]]
 head = 'dev'
 base = 'staging'

@@ -62,7 +62,7 @@ func GetCurrentRepoInfo() (*models.RepoInfo, error) {
 	return GetRepoInfo(path, displayName, "")
 }
 
-// DetectMainBranch determines if the repo uses "main" or "master"
+// DetectMainBranch determines the repo's default branch
 func DetectMainBranch(repo *git.Repository) (string, error) {
 	// origin/HEAD, which clone sets, names the remote's actual default. The
 	// guesses below were all there was, so a repo defaulting to trunk, or to
@@ -72,11 +72,24 @@ func DetectMainBranch(repo *git.Repository) (string, error) {
 			return name, nil
 		}
 	}
+	return guessMainBranch(repo), nil
+}
 
+// GuessMainBranch is main or master, whichever the repo has, without asking
+// origin/HEAD. For a repo whose default branch is one a release starts from.
+func GuessMainBranch(path string) string {
+	repo, err := git.PlainOpen(path)
+	if err != nil {
+		return "main"
+	}
+	return guessMainBranch(repo)
+}
+
+func guessMainBranch(repo *git.Repository) string {
 	// Check remote refs first
 	refs, err := repo.References()
 	if err != nil {
-		return "main", nil
+		return "main"
 	}
 
 	hasRemoteMain := false
@@ -103,22 +116,22 @@ func DetectMainBranch(repo *git.Repository) (string, error) {
 
 	// Prefer remote refs
 	if hasRemoteMain {
-		return "main", nil
+		return "main"
 	}
 	if hasRemoteMaster {
-		return "master", nil
+		return "master"
 	}
 
 	// Fall back to local refs
 	if hasLocalMain {
-		return "main", nil
+		return "main"
 	}
 	if hasLocalMaster {
-		return "master", nil
+		return "master"
 	}
 
 	// Default to main
-	return "main", nil
+	return "main"
 }
 
 // checkBranchName refuses a branch name git would read as an option: a

@@ -115,7 +115,7 @@ func (m Model) selectMainMenuItem() (tea.Model, tea.Cmd) {
 		m.mode = &mode
 		m.screen = ScreenLoading
 		m.loadingMessage = "Detecting repository..."
-		return m, loadCurrentRepoCmd()
+		return m, loadCurrentRepoCmd(m.flows())
 	case 1: // Batch Mode
 		mode := ModeBatch
 		m.mode = &mode

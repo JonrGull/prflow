@@ -137,7 +137,8 @@ path = "~/Projects/some-service"
 group = "Services"
 
 # The chain a release moves through, in order. Each entry is one PR.
-# base = "@default" means the repo's own default branch (main or master).
+# base = "@default" means the repo's default branch on GitHub, unless that is
+# a branch the chain releases from (a repo defaulting to dev): then main or master.
 [[flows]]
 head = 'dev'
 base = 'staging'

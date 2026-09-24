@@ -106,13 +106,15 @@ type currentRepoLoadedResult struct {
 func (currentRepoLoadedResult) flowResult() {}
 
 // loadCurrentRepoCmd loads info for the current repository
-func loadCurrentRepoCmd() tea.Cmd {
+func loadCurrentRepoCmd(flows []models.Flow) tea.Cmd {
 	return func() tea.Msg {
 		repo, err := git.GetCurrentRepoInfo()
 		if err != nil {
 			return currentRepoLoadedResult{err: err}
 		}
-		return currentRepoLoadedResult{repo: repo}
+		repos := []models.RepoInfo{*repo}
+		releaseTargets(repos, flows, git.GuessMainBranch)
+		return currentRepoLoadedResult{repo: &repos[0]}
 	}
 }
 

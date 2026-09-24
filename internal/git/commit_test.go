@@ -167,3 +167,29 @@ func TestDefaultBranchFollowsOriginHEAD(t *testing.T) {
 		t.Errorf("default branch = %q, want trunk from origin/HEAD", info.MainBranch)
 	}
 }
+
+// A repo whose GitHub default is dev, released dev → staging → @default, got
+// PRs from staging into dev. The app asks for main or master instead, and
+// that guess must not follow origin/HEAD back to dev.
+func TestGuessMainBranchIgnoresOriginHEAD(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	dir := t.TempDir()
+	gitInit(t, dir)
+	for _, args := range [][]string{
+		{"update-ref", "refs/remotes/origin/master", "HEAD"},
+		{"update-ref", "refs/remotes/origin/dev", "HEAD"},
+		{"symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/dev"},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if info, _ := GetRepoInfo(dir, "G/r", "G"); info.MainBranch != "dev" {
+		t.Errorf("default branch = %q, want dev from origin/HEAD", info.MainBranch)
+	}
+	if got := GuessMainBranch(dir); got != "master" {
+		t.Errorf("guess = %q, want master", got)
+	}
+}
