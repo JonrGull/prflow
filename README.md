@@ -8,9 +8,6 @@ step across every repo at once.
 
 https://github.com/user-attachments/assets/861a6098-118a-4487-87bf-0681d3ef117c
 
-*Recorded with `--dry-run`, so every repo, commit and PR in it is fixture data.
-Re-record it with [`docs/demo/make.sh`](docs/demo/).*
-
 ## Install
 
 ### Prerequisites
