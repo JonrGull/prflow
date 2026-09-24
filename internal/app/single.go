@@ -63,8 +63,13 @@ func fetchCommitsCmd(repo *models.RepoInfo, flow *models.Flow, ticketRegex *rege
 		// Extract all unique tickets
 		tickets := git.GetAllTickets(commits)
 
-		// Check for existing PR
-		existingPR, _ := github.GetExistingPR(repo.Path, headBranch, baseBranch)
+		// Check for existing PR. Its error used to be dropped, which showed
+		// "Create" for a PR that might already exist; creating would then fail
+		// on the same error, later and less clearly.
+		existingPR, err := github.GetExistingPR(repo.Path, headBranch, baseBranch)
+		if err != nil {
+			return fetchCommitsResult{err: fmt.Errorf("checking for an existing PR: %w", err)}
+		}
 
 		return fetchCommitsResult{commits: commits, tickets: tickets, existingPR: existingPR}
 	}

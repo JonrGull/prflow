@@ -190,7 +190,7 @@ func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
 						nodes {
 							commit {
 								statusCheckRollup {
-									contexts(first: 50) {
+									contexts(first: 100) {
 										nodes {
 											__typename
 											... on CheckRun {
@@ -738,7 +738,9 @@ func GetWorkflowRunJobs(repoPath string, runID uint64) ([]models.WorkflowJob, er
 // GetWorkflowRunJobsByNWO fetches jobs via REST API using owner/repo name
 func GetWorkflowRunJobsByNWO(nwo string, runID uint64) ([]models.WorkflowJob, error) {
 	output, err := run.Combined(run.Network, "", "gh", "api",
-		fmt.Sprintf("repos/%s/actions/runs/%d/jobs", nwo, runID))
+		// GitHub's largest page: the default of 30 silently dropped jobs from
+		// bigger workflows' panels.
+		fmt.Sprintf("repos/%s/actions/runs/%d/jobs?per_page=100", nwo, runID))
 	if err != nil {
 		return nil, fmt.Errorf("gh api actions/runs/jobs failed: %s", string(output))
 	}

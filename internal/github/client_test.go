@@ -278,3 +278,15 @@ func TestSSHHostnameReadsSSHConfig(t *testing.T) {
 		t.Errorf("sshHostname = %q, want github.com", got)
 	}
 }
+
+// Jobs came back in gh's default page of 30, so a big workflow's pinned
+// panel was missing jobs without saying so.
+func TestWorkflowJobsAskForAFullPage(t *testing.T) {
+	args := fakeGh(t, `{"jobs":[]}`, 0)
+	if _, err := GetWorkflowRunJobsByNWO("acme/web", 7); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(args(), "per_page=100") {
+		t.Errorf("gh %s: want per_page=100", args())
+	}
+}

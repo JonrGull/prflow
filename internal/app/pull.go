@@ -358,6 +358,9 @@ func (m Model) renderPullSummaryWithHeight(availableHeight int) string {
 	branchStyle := lipgloss.NewStyle().Foreground(m.branchColor(m.pull.branch)).Bold(true)
 	titleStyle := ui.GreenBold
 	lines = append(lines, titleStyle.Render("Pull Complete: ")+branchStyle.Render(m.pull.branch))
+	// Pulling checks each clean repo out onto the branch and leaves it there,
+	// which nothing used to mention.
+	lines = append(lines, ui.Dim.Render("Repos that pulled are left on "+m.pull.branch+"."))
 	lines = append(lines, "")
 
 	// Group results by status
