@@ -140,3 +140,30 @@ func TestBranchNamesCannotBeOptions(t *testing.T) {
 		t.Errorf("checkout err = %v, want the name refused", err)
 	}
 }
+
+// The default branch was guessed from which of main and master exist, so a
+// repo whose default is trunk (or master, with a stale main left on the
+// remote) got PRs against the wrong base. origin/HEAD says what it really is.
+func TestDefaultBranchFollowsOriginHEAD(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	dir := t.TempDir()
+	gitInit(t, dir)
+	for _, args := range [][]string{
+		{"update-ref", "refs/remotes/origin/main", "HEAD"},
+		{"update-ref", "refs/remotes/origin/trunk", "HEAD"},
+		{"symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	info, err := GetRepoInfo(dir, "G/r", "G")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.MainBranch != "trunk" {
+		t.Errorf("default branch = %q, want trunk from origin/HEAD", info.MainBranch)
+	}
+}

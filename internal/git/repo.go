@@ -64,6 +64,15 @@ func GetCurrentRepoInfo() (*models.RepoInfo, error) {
 
 // DetectMainBranch determines if the repo uses "main" or "master"
 func DetectMainBranch(repo *git.Repository) (string, error) {
+	// origin/HEAD, which clone sets, names the remote's actual default. The
+	// guesses below were all there was, so a repo defaulting to trunk, or to
+	// master with a stale main still on the remote, got the wrong base.
+	if ref, err := repo.Reference(plumbing.ReferenceName("refs/remotes/origin/HEAD"), false); err == nil && ref.Type() == plumbing.SymbolicReference {
+		if name, ok := strings.CutPrefix(ref.Target().String(), "refs/remotes/origin/"); ok && name != "" {
+			return name, nil
+		}
+	}
+
 	// Check remote refs first
 	refs, err := repo.References()
 	if err != nil {
