@@ -324,10 +324,12 @@ func Load() (*Config, error) {
 	_ = cfg.compileRegex()
 
 	// Adopt update bookkeeping that older versions kept in the config file.
+	// Adopted in memory only. Load runs before the app knows about --dry-run,
+	// so saving here wrote the state file under a flag that promises no
+	// writes. The next state write the app makes (the update check records
+	// itself) persists it; until then the old values are still in the file.
 	cfg.state = LoadState()
-	if cfg.state.migrateFrom(cfg.Update) {
-		_ = cfg.state.Save() // best effort: losing it costs one extra check
-	}
+	cfg.state.migrateFrom(cfg.Update)
 	cfg.Update.LastCheck = time.Time{}
 	cfg.Update.SkippedVersion = ""
 

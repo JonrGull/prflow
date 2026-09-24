@@ -615,3 +615,16 @@ func TestNonRepoPathsAreReported(t *testing.T) {
 		t.Errorf("non-repo [[repos]] path not reported: %v", fields)
 	}
 }
+
+// Load saved migrated update state before the app had even seen --dry-run,
+// so a dry run could still write prflow-state.toml.
+func TestLoadWritesNothing(t *testing.T) {
+	cfg := loadBody(t, "[update]\nskipped_version = 'v9.9.9'\nlast_check = 2026-01-02T03:04:05Z\n")
+	if cfg.SkippedVersion() != "v9.9.9" {
+		t.Errorf("skipped version not adopted: %q", cfg.SkippedVersion())
+	}
+	dir := os.Getenv("XDG_CONFIG_HOME")
+	if _, err := os.Stat(filepath.Join(dir, stateName)); err == nil {
+		t.Error("Load wrote the state file")
+	}
+}
