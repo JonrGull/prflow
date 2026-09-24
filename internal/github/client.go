@@ -184,7 +184,7 @@ func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
 				... on PullRequest {
 					number url title state isDraft
 					author { login }
-					headRefName baseRefName
+					headRefName baseRefName mergeable isCrossRepository
 					repository { nameWithOwner }
 					statusCheckRollup: commits(last: 1) {
 						nodes {
@@ -303,9 +303,11 @@ type searchPRNode struct {
 	Author  struct {
 		Login string `json:"login"`
 	} `json:"author"`
-	HeadRefName string `json:"headRefName"`
-	BaseRefName string `json:"baseRefName"`
-	Repository  struct {
+	HeadRefName       string `json:"headRefName"`
+	BaseRefName       string `json:"baseRefName"`
+	Mergeable         string `json:"mergeable"` // MERGEABLE, CONFLICTING or UNKNOWN
+	IsCrossRepository bool   `json:"isCrossRepository"`
+	Repository        struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	} `json:"repository"`
 	StatusCheckRollup struct {
@@ -418,6 +420,9 @@ func (n searchPRNode) toGhPr() models.GhPr {
 		IsDraft:    n.IsDraft,
 		HeadBranch: n.HeadRefName,
 		BaseBranch: n.BaseRefName,
+
+		Mergeable:         n.Mergeable,
+		IsCrossRepository: n.IsCrossRepository,
 	}
 	pr.Author.Login = n.Author.Login
 

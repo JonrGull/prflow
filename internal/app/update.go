@@ -226,6 +226,9 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case currentRepoLoadedResult:
 		return m.handleCurrentRepoLoaded(msg)
 
+	case homeFetchedResult:
+		return m.handleHomeFetched(msg)
+
 	case authCheckResult:
 		m.authError = msg.err
 		m.ghUser = msg.user

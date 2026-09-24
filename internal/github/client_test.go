@@ -290,3 +290,25 @@ func TestWorkflowJobsAskForAFullPage(t *testing.T) {
 		t.Errorf("gh %s: want per_page=100", args())
 	}
 }
+
+// One request compares every repo's steps. A repo missing a branch comes back
+// as a null with an error beside it, and gh exits 1, but the rest must count.
+func TestCompareBranchesKeepsWhatItCan(t *testing.T) {
+	out := `{"data":{"c0":{"ref":{"compare":{"aheadCount":14}}},"c1":{"ref":null},"c2":{"ref":{"compare":null}}},"errors":[{"message":"not found"}]}`
+	args := fakeGh(t, out, 1)
+	pairs := []BranchPair{
+		{NWO: "acme/web", Base: "staging", Head: "dev"},
+		{NWO: "acme/api", Base: "staging", Head: "dev"},
+		{NWO: "acme/old", Base: "main", Head: "staging"},
+	}
+	got, err := CompareBranches(pairs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[pairs[0]] != 14 {
+		t.Errorf("got %v, want only acme/web at 14", got)
+	}
+	if a := args(); !strings.Contains(a, "b0=refs/heads/staging") || !strings.Contains(a, "h0=dev") || !strings.Contains(a, "o1=acme") {
+		t.Errorf("gh %s: variables not passed as expected", a)
+	}
+}

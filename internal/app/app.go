@@ -90,6 +90,7 @@ type Model struct {
 	qa       qaState
 	allPRs   allPRsState
 	actions  actionsState
+	home     homeState // the dashboard's data; survives reset()
 	settings settingsState
 	list     listState
 	firstRun firstRunState

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/JonrGull/prflow/internal/github"
 	"github.com/JonrGull/prflow/internal/linear"
 	"github.com/JonrGull/prflow/internal/models"
 )
@@ -329,4 +330,83 @@ func dryRunActionsJobs(runID uint64) actionsJobsFetchedResult {
 			},
 		},
 	}}
+}
+
+// --- Dashboard --------------------------------------------------------------
+
+// dryRunHomeData runs made-up repos, PRs and Actions runs through the real
+// buildHomeData, so --dry-run exercises the same arithmetic as a live fetch.
+// It covers every attention kind and every CI state.
+func dryRunHomeData(flows []models.Flow) homeData {
+	now := timeNow()
+	names := []struct{ name, group, main string }{
+		{"web-app", "Frontend", "main"}, {"api-service", "Backend", "main"}, {"billing", "Backend", "main"},
+		{"worker", "Backend", "master"}, {"admin", "Frontend", "main"}, {"docs", "Frontend", "main"},
+	}
+	var repos []repoNWO
+	for _, n := range names {
+		repos = append(repos, repoNWO{Repo: models.NewRepoInfo("/demo/"+n.name, n.group+"/"+n.name, n.main, n.group), NWO: "acme/" + n.name})
+	}
+	check := func(status, conclusion string) []models.CheckRun {
+		return []models.CheckRun{{Name: "test", Status: status, Conclusion: conclusion}}
+	}
+	passing, failing, running := check("COMPLETED", "SUCCESS"), check("COMPLETED", "FAILURE"), check("IN_PROGRESS", "")
+	pr := func(n uint64, f models.Flow, repo repoNWO, ci []models.CheckRun, mergeable string, changes bool) models.GhPr {
+		p := models.GhPr{Number: n, HeadBranch: f.HeadBranch(), BaseBranch: f.BaseBranch(repo.Repo.MainBranch),
+			StatusCheckRollup: ci, Mergeable: mergeable}
+		if changes {
+			p.LatestReviews = []models.PrReview{{State: "CHANGES_REQUESTED"}}
+		}
+		return p
+	}
+
+	prs := map[string][]models.GhPr{}
+	ahead := map[github.BranchPair]int{}
+	pairOf := func(f models.Flow, r repoNWO) github.BranchPair {
+		return github.BranchPair{NWO: r.NWO, Base: f.BaseBranch(r.Repo.MainBranch), Head: f.HeadBranch()}
+	}
+	for i, f := range flows {
+		for _, r := range repos {
+			ahead[pairOf(f, r)] = 0
+		}
+		switch i {
+		case 0:
+			for j, n := range []int{5, 3, 2, 14, 1, 0} {
+				ahead[pairOf(f, repos[j])] = n
+			}
+			prs["acme/web-app"] = append(prs["acme/web-app"], pr(212, f, repos[0], failing, "MERGEABLE", false))
+			prs["acme/api-service"] = append(prs["acme/api-service"], pr(88, f, repos[1], passing, "MERGEABLE", false))
+			prs["acme/billing"] = append(prs["acme/billing"], pr(41, f, repos[2], running, "CONFLICTING", false))
+			prs["acme/admin"] = append(prs["acme/admin"], pr(19, f, repos[4], passing, "MERGEABLE", false))
+		case 1:
+			ahead[pairOf(f, repos[0])] = 1
+			ahead[pairOf(f, repos[1])] = 2
+			prs["acme/api-service"] = append(prs["acme/api-service"], pr(90, f, repos[1], passing, "MERGEABLE", true))
+			prs["acme/web-app"] = append(prs["acme/web-app"], pr(215, f, repos[0], running, "MERGEABLE", false))
+		default:
+			ahead[pairOf(f, repos[i%len(repos)])] = 4
+		}
+	}
+
+	run := func(repo int, wf, branch, status, conclusion string, ago time.Duration) actionsEntry {
+		return actionsEntry{Repo: repos[repo].Repo, Run: models.WorkflowRun{WorkflowName: wf, HeadBranch: branch,
+			Status: status, Conclusion: conclusion, UpdatedAt: now.Add(-ago)}}
+	}
+	runs := []actionsEntry{
+		run(0, "deploy-prod", "main", "completed", "success", 4*time.Minute),
+		run(1, "ci", "dev", "in_progress", "", 20*time.Second),
+		run(2, "e2e", "staging", "completed", "failure", time.Hour),
+		run(3, "lint", "dev", "completed", "success", 2*time.Hour),
+	}
+	// A day of history for the CI strip: busy in working hours, two failures.
+	for h := 3; h < 24; h++ {
+		for k := 0; k < (h*7)%5+1; k++ {
+			conclusion := "success"
+			if h == 9 && k == 0 || h == 17 && k == 0 {
+				conclusion = "failure"
+			}
+			runs = append(runs, run((h+k)%len(repos), "ci", "dev", "completed", conclusion, time.Duration(h)*time.Hour+time.Duration(k)*7*time.Minute))
+		}
+	}
+	return buildHomeData(flows, repos, prs, ahead, runs, now)
 }

@@ -52,6 +52,7 @@ type GhPr struct {
 	HeadBranch        string          `json:"headRefName"`
 	HeadSHA           string          `json:"headRefOid"`
 	IsCrossRepository bool            `json:"isCrossRepository"` // opened from a fork
+	Mergeable         string          `json:"mergeable"`         // MERGEABLE, CONFLICTING or UNKNOWN
 	BaseBranch        string          `json:"baseRefName"`
 	StatusCheckRollup []CheckRun      `json:"statusCheckRollup"`
 	Comments          []PrComment     `json:"comments"`
