@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/JonrGull/prflow/internal/models"
@@ -162,12 +163,115 @@ func GetOpenReleasePRs(repoPath string, flows []models.Flow, defaultBranch strin
 	return status, nil
 }
 
-// SearchAllOpenPRs fetches all open PRs across multiple repos in a single GraphQL query.
-// Returns a map from NWO (owner/repo) to PRs.
-func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
+// searchRepoChunk is how many repos one search covers; the searches run at
+// once. One search over 31 repos and 106 PRs timed out (HTTP 504) every time,
+// and a search takes longer the more PRs it returns.
+const searchRepoChunk = 4
+
+// prFieldsAll is everything the All PRs table derives its columns from.
+const prFieldsAll = `
+	number url title state isDraft
+	author { login }
+	headRefName baseRefName isCrossRepository
+	repository { nameWithOwner }
+	statusCheckRollup: commits(last: 1) {
+		nodes {
+			commit {
+				statusCheckRollup {
+					contexts(first: 100) {
+						nodes {
+							__typename
+							... on CheckRun {
+								name
+								workflowName: checkSuite { workflowRun { workflow { name } } }
+								status conclusion
+							}
+							... on StatusContext { context state }
+						}
+					}
+				}
+			}
+		}
+	}
+	comments(last: 50) {
+		nodes { author { login } body createdAt }
+	}
+	reviews(last: 50) {
+		nodes { author { login } state submittedAt }
+	}
+	latestReviews(last: 10) {
+		nodes { author { login } state submittedAt }
+	}
+	reviewRequests(last: 10) {
+		nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
+	}
+	commits(last: 20) {
+		nodes { commit { authoredDate } }
+	}
+`
+
+// prFieldsDashboard is what the dashboard needs: which release PR it is, its
+// checks, and whether a reviewer asked for changes.
+const prFieldsDashboard = `
+	number url title state isDraft
+	headRefName baseRefName isCrossRepository
+	repository { nameWithOwner }
+	statusCheckRollup: commits(last: 1) {
+		nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+			__typename
+			... on CheckRun { name status conclusion }
+			... on StatusContext { context state }
+		} } } } }
+	}
+	latestReviews(last: 10) { nodes { state } }
+`
+
+// searchInGroups fetches all open PRs across multiple repos, searching a few
+// repos at a time in parallel. Returns a map from NWO (owner/repo) to PRs.
+func searchInGroups(nwos []string, fields string) (map[string][]models.GhPr, error) {
 	if len(nwos) == 0 {
 		return nil, nil
 	}
+	var chunks [][]string
+	for i := 0; i < len(nwos); i += searchRepoChunk {
+		chunks = append(chunks, nwos[i:min(i+searchRepoChunk, len(nwos))])
+	}
+	found := make([]map[string][]models.GhPr, len(chunks))
+	errs := make([]error, len(chunks))
+	var wg sync.WaitGroup
+	for i, chunk := range chunks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			found[i], errs[i] = searchOpenPRs(chunk, fields)
+		}()
+	}
+	wg.Wait()
+
+	result := make(map[string][]models.GhPr)
+	for i := range chunks {
+		if errs[i] != nil {
+			return nil, errs[i]
+		}
+		for nwo, prs := range found[i] {
+			result[nwo] = append(result[nwo], prs...)
+		}
+	}
+	return result, nil
+}
+
+// SearchAllOpenPRs fetches every open PR with what the All PRs table needs.
+func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
+	return searchInGroups(nwos, prFieldsAll)
+}
+
+// SearchOpenPRsForDashboard fetches every open PR with only what the
+// dashboard's cards need.
+func SearchOpenPRsForDashboard(nwos []string) (map[string][]models.GhPr, error) {
+	return searchInGroups(nwos, prFieldsDashboard)
+}
+
+func searchOpenPRs(nwos []string, fields string) (map[string][]models.GhPr, error) {
 
 	// Build search query: "is:pr is:open repo:owner/repo1 repo:owner/repo2 ..."
 	var repoClauses []string
@@ -176,52 +280,10 @@ func SearchAllOpenPRs(nwos []string) (map[string][]models.GhPr, error) {
 	}
 	searchQuery := "is:pr is:open " + strings.Join(repoClauses, " ")
 
-	// GraphQL query with all fields we need
 	query := `query($q: String!, $cursor: String) {
-		search(query: $q, type: ISSUE, first: 100, after: $cursor) {
+		search(query: $q, type: ISSUE, first: 25, after: $cursor) {
 			pageInfo { hasNextPage endCursor }
-			nodes {
-				... on PullRequest {
-					number url title state isDraft
-					author { login }
-					headRefName baseRefName isCrossRepository
-					repository { nameWithOwner }
-					statusCheckRollup: commits(last: 1) {
-						nodes {
-							commit {
-								statusCheckRollup {
-									contexts(first: 100) {
-										nodes {
-											__typename
-											... on CheckRun {
-												name
-												workflowName: checkSuite { workflowRun { workflow { name } } }
-												status conclusion
-											}
-											... on StatusContext { context state }
-										}
-									}
-								}
-							}
-						}
-					}
-					comments(last: 50) {
-						nodes { author { login } body createdAt }
-					}
-					reviews(last: 50) {
-						nodes { author { login } state submittedAt }
-					}
-					latestReviews(last: 10) {
-						nodes { author { login } state submittedAt }
-					}
-					reviewRequests(last: 10) {
-						nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
-					}
-					commits(last: 20) {
-						nodes { commit { authoredDate } }
-					}
-				}
-			}
+			nodes { ... on PullRequest { ` + fields + ` } }
 		}
 	}`
 

@@ -17,10 +17,10 @@ import (
 // The dashboard's data: what the home screen shows about the release, fetched
 // in the background. Rendering and keys are in mainmenu.go.
 //
-// Three requests cover every repo: the open-PR search the All PRs tab already
-// uses, one GraphQL branch comparison for the pipeline, and each repo's Actions
-// runs from the last day. buildHomeData turns them into panels and is pure, so
-// tests and --dry-run drive it without the network.
+// Three requests cover every repo: an open-PR search with the fields the
+// cards need, one GraphQL branch comparison for the pipeline, and each repo's
+// Actions runs from the last day. buildHomeData turns them into panels and is
+// pure, so tests and --dry-run drive it without the network.
 
 // homeStaleAfter is how old the data may get before arriving home refreshes it.
 const homeStaleAfter = 5 * time.Minute
@@ -160,7 +160,7 @@ func fetchHomeCmd(cfg *config.Config, flows []models.Flow, dryRun bool, gen int)
 		wg.Add(3)
 		go func() {
 			defer wg.Done()
-			prs, prErr = github.SearchAllOpenPRs(nwos)
+			prs, prErr = github.SearchOpenPRsForDashboard(nwos)
 			if prErr == nil {
 				prErr = fillMergeStates(releasePRs(flows, withNWO, prs))
 			}

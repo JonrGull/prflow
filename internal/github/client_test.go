@@ -376,3 +376,26 @@ func TestPollsAreConditionalRequests(t *testing.T) {
 		t.Error("a 502 was not an error")
 	}
 }
+
+// One search over 31 repos and 106 PRs timed out (HTTP 504) every time. The
+// repos are searched a few at a time, and every group's PRs come back.
+func TestSearchAllOpenPRsSearchesInGroups(t *testing.T) {
+	node := `{"data":{"search":{"pageInfo":{"hasNextPage":false},"nodes":[{"number":1,"repository":{"nameWithOwner":"acme/a"}}]}}}`
+	args := fakeGh(t, node, 0)
+	nwos := make([]string, searchRepoChunk+1)
+	for i := range nwos {
+		nwos[i] = fmt.Sprintf("acme/r%d", i)
+	}
+	prs, err := SearchAllOpenPRs(nwos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Each of the two searches answered with the same PR, so both were made
+	// and merged.
+	if len(prs["acme/a"]) != 2 {
+		t.Errorf("got %d PRs, want one from each of the 2 searches", len(prs["acme/a"]))
+	}
+	if a := args(); !strings.Contains(a, "first: 25") {
+		t.Error("the search does not ask for pages of 25")
+	}
+}

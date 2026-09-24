@@ -100,6 +100,8 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 
 **Polled GitHub calls are conditional requests:** the Actions runs and jobs fetches go through `github.cachedGet`, which sends the last ETag and returns the stored body on a 304. A 304 does not count against the REST rate limit (5,000 an hour); polling 29 repos every 5 seconds without it used the limit up in about 15 minutes, after which PR creation failed too. Anything new that polls should use it; a path that changes every call (a timestamp in it) should not, since every distinct path keeps its body.
 
+**The open-PR search runs in groups:** `SearchAllOpenPRs` and `SearchOpenPRsForDashboard` search `searchRepoChunk` (4) repos per request, all at once, in pages of 25. A search's time grows with the PRs it returns, and one search over 31 repos and 106 PRs timed out (HTTP 504) every time; grouped, all 106 arrive in about 5 seconds. GraphQL charges by the page size asked for (2 points for 25), so keep pages small rather than raising them to save round trips.
+
 **External commands:** every `gh`/`git`/clipboard/browser call goes through `internal/run`, which wraps `exec.CommandContext` with a deadline (`run.Network` 30s, `run.Local` 5s, `run.Slow` 5m). Never use `exec.Command` directly — the TUI blocks on these, so an unbounded call freezes the app.
 
 **Repo discovery is cached:** call `discoverRepos(cfg)`, not `git.FindRepos` directly. The cache keys on the config values that affect discovery, so a settings change invalidates it automatically; call `invalidateRepoCache()` for an explicit user-driven refresh.
@@ -116,7 +118,8 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 
 **The Home dashboard (`home.go` data, `mainmenu.go` cards):** the main menu is
 a dashboard whose Start card is the old menu. `fetchHomeCmd` makes three
-requests for every repo at once: the open-PR search, one GraphQL branch
+requests for every repo at once: the open-PR search (`SearchOpenPRsForDashboard`,
+only the fields the cards use), one GraphQL branch
 comparison (`github.CompareBranches`, `Ref.compare(headRef:).aheadBy`) and each
 repo's Actions runs from the last 24 hours. Repos are deduped by owner/repo
 first, since a worktree under the repos dir is a second checkout of the same
