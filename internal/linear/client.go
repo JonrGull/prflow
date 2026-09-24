@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-const apiURL = "https://api.linear.app/graphql"
+// A var so tests can point it at a fake.
+var apiURL = "https://api.linear.app/graphql"
 
 // httpClient bounds Linear calls. http.DefaultClient has no timeout, so a
 // stalled connection would hang the TUI indefinitely with no way to cancel.
@@ -21,6 +22,9 @@ type QaTagResult struct {
 	Ticket  string
 	Success bool
 	Error   string
+	// Warning is set when the comment posted but the QA person wasn't
+	// subscribed, so they may not be notified.
+	Warning string
 }
 
 type graphqlRequest struct {
@@ -150,17 +154,20 @@ func CreateComment(apiKey, issueID, body string) error {
 	return err
 }
 
-// SubscribeUserToIssue adds a user as a subscriber to an issue
+// SubscribeUserToIssue adds a user as a subscriber to an issue.
+//
+// This used to pass subscriberIds, which issueSubscribe has never taken, so
+// Linear rejected every call and the error was thrown away.
 func SubscribeUserToIssue(apiKey, issueID, userID string) error {
 	_, err := doQuery(apiKey, graphqlRequest{
-		Query: `mutation($id: String!, $userIds: [String!]!) {
-			issueSubscribe(id: $id, subscriberIds: $userIds) {
+		Query: `mutation($id: String!, $userId: String!) {
+			issueSubscribe(id: $id, userId: $userId) {
 				success
 			}
 		}`,
 		Variables: map[string]any{
-			"id":      issueID,
-			"userIds": []string{userID},
+			"id":     issueID,
+			"userId": userID,
 		},
 	})
 	return err
@@ -210,11 +217,13 @@ func TagTicketsForQA(apiKey string, tickets []string, qaPerson, qaPersonID, envi
 
 	// Use provided ID or look up by display name
 	userID := qaPersonID
+	lookupErr := ""
 	if userID == "" {
 		id, err := FindUserByDisplayName(apiKey, qaPerson)
-		if err == nil {
-			userID = id
+		if err != nil {
+			lookupErr = "not subscribed: " + err.Error()
 		}
+		userID = id
 	}
 
 	body := fmt.Sprintf(
@@ -230,8 +239,11 @@ func TagTicketsForQA(apiKey string, tickets []string, qaPerson, qaPersonID, envi
 			continue
 		}
 		// Subscribe QA person so they get notified
+		results[i].Warning = lookupErr
 		if userID != "" {
-			_ = SubscribeUserToIssue(apiKey, issueID, userID)
+			if err := SubscribeUserToIssue(apiKey, issueID, userID); err != nil {
+				results[i].Warning = "not subscribed: " + err.Error()
+			}
 		}
 		if err := CreateComment(apiKey, issueID, body); err != nil {
 			results[i].Error = err.Error()

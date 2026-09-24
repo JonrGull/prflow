@@ -134,7 +134,6 @@ func tagEpoch(epoch uint64, cmd tea.Cmd) tea.Cmd {
 func (m *Model) newEpoch() {
 	m.epoch++
 	m.cancelBatchFetch()
-	m.batch.fetchPending = 0
 	m.allPRs.loading = false
 	m.actions.loading = false
 }

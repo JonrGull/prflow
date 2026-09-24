@@ -414,6 +414,12 @@ func FilterInput(filter string, title string, color lipgloss.TerminalColor, widt
 	return style.Render(titleStyle.Render(title) + "\n" + content)
 }
 
+// Commit counts for RepoListItemWithCommits that aren't counts.
+const (
+	CommitsLoading = -1
+	CommitsFailed  = -2
+)
+
 // RepoListItemWithCommits renders a repo item with checkbox and commit indicator
 // commitCount: -1 = loading, 0 = no commits, >0 = has commits
 func RepoListItemWithCommits(name string, selected bool, highlighted bool, color lipgloss.TerminalColor, indent string, commitCount int, spinnerFrame int) string {
@@ -434,7 +440,9 @@ func RepoListItemWithCommits(name string, selected bool, highlighted bool, color
 
 	// Show indicator based on state
 	var indicator string
-	if commitCount < 0 {
+	if commitCount == CommitsFailed {
+		indicator = lipgloss.NewStyle().Foreground(ColorRed).Render(" ✗")
+	} else if commitCount < 0 {
 		// Loading - show spinner
 		spinner := string(SpinnerFrames[spinnerFrame%len(SpinnerFrames)])
 		indicator = lipgloss.NewStyle().Foreground(ColorYellow).Render(" " + spinner)

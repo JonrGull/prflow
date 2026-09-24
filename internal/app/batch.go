@@ -29,13 +29,16 @@ import (
 type batchState struct {
 	repos       []models.RepoInfo
 	repoCommits []*[]models.CommitInfo // per repo: nil=loading, empty=nothing to merge
+	repoErrs    []string               // per repo: why its fetch failed, "" if it didn't
 	selected    []bool
 	results     []models.BatchResult
 
-	// Background commit fetching, cancelled when leaving the screen.
+	// Background commit fetching. It runs until the flow ends, not until you
+	// leave the repo list: Esc from the title input comes back to it.
 	fetchCancel  func()
 	resultsChan  chan batchRepoCommitResult
-	fetchPending int // repos still fetching
+	fetchPending int  // repos still fetching
+	waiting      bool // Enter pressed with selected repos still fetching
 
 	filter  string
 	column  int // 0=left, 1=right
@@ -332,6 +335,7 @@ func (r batchReposLoadedResult) abandon() {
 type batchRepoCommitResult struct {
 	index   int
 	commits []models.CommitInfo
+	err     error
 }
 
 func (batchRepoCommitResult) flowResult() {}
@@ -369,6 +373,7 @@ func loadBatchReposCmd(cfg *config.Config, flow *models.Flow, dryRun bool, resul
 					}
 
 					var commits []models.CommitInfo
+					var err error
 
 					if dryRun {
 						commits = dryRunRepoCommits(idx)
@@ -376,9 +381,11 @@ func loadBatchReposCmd(cfg *config.Config, flow *models.Flow, dryRun bool, resul
 						headBranch := flow.HeadBranch()
 						baseBranch := flow.BaseBranch(r.MainBranch)
 
-						// Fetch from remote (network call)
-						if err := git.FetchBranches(r.Path, []string{headBranch, baseBranch}); err == nil {
-							commits, _ = git.GetCommitsBetween(r.Path, baseBranch, headBranch, cfg.TicketRegex())
+						// Fetch from remote (network call). A failure is
+						// reported, not shown as "nothing to merge".
+						err = git.FetchBranches(r.Path, []string{headBranch, baseBranch})
+						if err == nil {
+							commits, err = git.GetCommitsBetween(r.Path, baseBranch, headBranch, cfg.TicketRegex())
 						}
 					}
 
@@ -386,7 +393,7 @@ func loadBatchReposCmd(cfg *config.Config, flow *models.Flow, dryRun bool, resul
 					select {
 					case <-ctx.Done():
 						return
-					case resultsChan <- batchRepoCommitResult{index: idx, commits: commits}:
+					case resultsChan <- batchRepoCommitResult{index: idx, commits: commits, err: err}:
 					}
 				}(i, repo)
 			}
@@ -399,6 +406,9 @@ func loadBatchReposCmd(cfg *config.Config, flow *models.Flow, dryRun bool, resul
 
 // listenForBatchCommits creates a command that listens for commit results
 func listenForBatchCommits(resultsChan chan batchRepoCommitResult) tea.Cmd {
+	if resultsChan == nil {
+		return nil // receiving from nil blocks forever
+	}
 	return func() tea.Msg {
 		result, ok := <-resultsChan
 		if !ok {
@@ -417,6 +427,7 @@ func (m Model) handleBatchReposLoaded(msg batchReposLoadedResult) (tea.Model, te
 
 	m.batch.repos = msg.repos
 	m.batch.repoCommits = make([]*[]models.CommitInfo, len(msg.repos)) // All nil = loading
+	m.batch.repoErrs = make([]string, len(msg.repos))
 	m.batch.selected = make([]bool, len(msg.repos))
 	m.batch.fetchCancel = msg.cancelFunc
 	m.batch.fetchPending = len(msg.repos)
@@ -437,35 +448,43 @@ func (m Model) handleBatchRepoCommitResult(msg batchRepoCommitResult) (tea.Model
 	if msg.index >= 0 && msg.index < len(m.batch.repoCommits) {
 		commits := msg.commits // Make a copy to get a stable pointer
 		m.batch.repoCommits[msg.index] = &commits
+		if msg.err != nil && msg.index < len(m.batch.repoErrs) {
+			m.batch.repoErrs[msg.index] = msg.err.Error()
+		}
 	}
 
 	m.batch.fetchPending--
 
-	// If we're waiting for selected repos to finish (Loading screen)
-	if m.screen == ScreenLoading && m.batch.resultsChan != nil {
-		// Check if all selected repos are now done
-		allDone := true
-		for i, selected := range m.batch.selected {
-			if selected && i < len(m.batch.repoCommits) && m.batch.repoCommits[i] == nil {
-				allDone = false
-				break
-			}
-		}
-		if allDone {
-			// All selected repos done - cancel remaining and proceed
-			m.cancelBatchFetch()
-			m.loadingMessage = "Checking for existing PRs..."
-			return m, fetchBatchCommitsCmd(m.batch.repos, m.batch.selected, m.batch.repoCommits, m.flow, m.dryRun)
-		}
-		// Still waiting - keep listening
-		return m, listenForBatchCommits(m.batch.resultsChan)
+	// Exactly one listener is out while fetches are, on every screen of the
+	// flow. Listening only on the repo list used to strand a repo that was
+	// still loading when you moved on: back on the list it spun forever, and
+	// selecting it hung on "Waiting for 1 repo(s)".
+	listen := tea.Cmd(nil)
+	if m.batch.fetchPending > 0 {
+		listen = listenForBatchCommits(m.batch.resultsChan)
 	}
 
-	// Keep listening if more results pending and still on batch select screen
-	if m.batch.fetchPending > 0 && m.screen == ScreenBatchRepoSelect && m.batch.resultsChan != nil {
-		return m, listenForBatchCommits(m.batch.resultsChan)
+	if m.batch.waiting && m.screen == ScreenLoading {
+		if n := m.selectedStillLoading(); n > 0 {
+			m.loadingMessage = fmt.Sprintf("Waiting for %d repo(s) to finish...", n)
+			return m, listen
+		}
+		m.batch.waiting = false
+		m.loadingMessage = "Checking for existing PRs..."
+		return m, tea.Batch(listen, fetchBatchCommitsCmd(m.batch.repos, m.batch.selected, m.batch.repoCommits, m.flow, m.dryRun))
 	}
-	return m, nil
+	return m, listen
+}
+
+// selectedStillLoading counts selected repos whose commits haven't arrived.
+func (m Model) selectedStillLoading() int {
+	n := 0
+	for i, selected := range m.batch.selected {
+		if selected && i < len(m.batch.repoCommits) && m.batch.repoCommits[i] == nil {
+			n++
+		}
+	}
+	return n
 }
 
 func (m Model) handleBatchCommitsResult(msg batchCommitsResult) (tea.Model, tea.Cmd) {
@@ -535,6 +554,8 @@ func (m *Model) cancelBatchFetch() {
 		m.batch.fetchCancel = nil
 	}
 	m.batch.resultsChan = nil
+	m.batch.fetchPending = 0
+	m.batch.waiting = false
 }
 
 func (m Model) startBatchProcessing() (tea.Model, tea.Cmd) {
@@ -600,21 +621,14 @@ func (m Model) handleBatchRepoSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.flow != nil {
 			m.prTitle = m.flow.DefaultTitle("main")
 		}
-		// Check if any selected repos are still loading
-		loadingCount := 0
-		for i, selected := range m.batch.selected {
-			if selected && i < len(m.batch.repoCommits) && m.batch.repoCommits[i] == nil {
-				loadingCount++
-			}
-		}
-		if loadingCount > 0 {
-			// Wait for selected repos to finish - show loading but keep listening
+		// The fetch keeps running either way; its result handler moves on
+		// once the last selected repo arrives.
+		if n := m.selectedStillLoading(); n > 0 {
+			m.batch.waiting = true
 			m.screen = ScreenLoading
-			m.loadingMessage = fmt.Sprintf("Waiting for %d repo(s) to finish...", loadingCount)
-			return m, listenForBatchCommits(m.batch.resultsChan)
+			m.loadingMessage = fmt.Sprintf("Waiting for %d repo(s) to finish...", n)
+			return m, nil
 		}
-		// All selected repos done - cancel remaining fetches and proceed
-		m.cancelBatchFetch()
 		// Go to loading screen to check for existing PRs (commits already cached)
 		m.screen = ScreenLoading
 		m.loadingMessage = "Checking for existing PRs..."
@@ -773,9 +787,10 @@ func (m Model) renderBatchRepoColumn(col int, filtered []int) (lines []string, h
 			highlightedRepoIdx = repoIdx
 		}
 
-		// Commit count: -1 = still loading, 0 = nothing to merge, >0 = has commits.
-		commitCount := -1
-		if repoIdx < len(m.batch.repoCommits) && m.batch.repoCommits[repoIdx] != nil {
+		commitCount := ui.CommitsLoading
+		if m.batchRepoErr(repoIdx) != "" {
+			commitCount = ui.CommitsFailed
+		} else if repoIdx < len(m.batch.repoCommits) && m.batch.repoCommits[repoIdx] != nil {
 			commitCount = len(*m.batch.repoCommits[repoIdx])
 		}
 
@@ -855,6 +870,18 @@ func (m Model) renderBatchRepoSelectWithHeight(availableHeight int) string {
 }
 
 // renderCommitsPreview renders a preview of commits for the given repo index
+// maxPreviewErrLines caps a fetch error in the preview at the height of its
+// commit list: git can print a screenful.
+const maxPreviewErrLines = 4
+
+// batchRepoErr is why repo i's fetch failed, or "" if it didn't.
+func (m Model) batchRepoErr(i int) string {
+	if i >= 0 && i < len(m.batch.repoErrs) {
+		return m.batch.repoErrs[i]
+	}
+	return ""
+}
+
 func (m Model) renderCommitsPreview(repoIdx int, width int) string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -889,6 +916,15 @@ func (m Model) renderCommitsPreview(repoIdx int, width int) string {
 		lines = append(lines, headerStyle.Render(repoName)+" "+spinnerStyle.Render(spinner+" fetching..."))
 		dimStyle := ui.Dim
 		lines = append(lines, dimStyle.Render("  Checking for commits..."))
+	} else if errText := m.batchRepoErr(repoIdx); errText != "" {
+		lines = append(lines, headerStyle.Render(repoName)+" "+ui.Red.Render("✗ fetch failed"))
+		errLines := wrapToWidth(errText, width-4, "  ")
+		if len(errLines) > maxPreviewErrLines {
+			errLines = append(errLines[:maxPreviewErrLines-1], "  …")
+		}
+		for _, l := range errLines {
+			lines = append(lines, ui.Dim.Render(l))
+		}
 	} else {
 		commits := *m.batch.repoCommits[repoIdx]
 		countStyle := ui.Cyan
@@ -994,14 +1030,31 @@ func (m Model) renderBatchConfirmationWithHeight(availableHeight int) string {
 	leftLines = append(leftLines, ui.SectionHeader("CONFIRM", ui.ColorGreen))
 	leftLines = append(leftLines, "")
 
-	// Calculate repos to skip (no commits)
-	reposToSkip := selectedCount - m.batch.reposWithCommits
+	// Calculate repos to skip (no commits). A failed fetch also has none, but
+	// it isn't up to date: creating retries it.
+	failed := 0
+	for i, sel := range m.batch.selected {
+		if sel && m.batchRepoErr(i) != "" {
+			failed++
+		}
+	}
+	reposToSkip := selectedCount - m.batch.reposWithCommits - failed
+
+	if failed > 0 {
+		msg := fmt.Sprintf("  ✗ %d repo(s) failed to fetch", failed)
+		if m.batch.reposWithCommits > 0 {
+			msg += " - will retry"
+		}
+		leftLines = append(leftLines, ui.RedBold.Render(msg), "")
+	}
 
 	// Show warning if ALL repos will be skipped
 	if m.batch.reposWithCommits == 0 {
-		warningStyle := ui.YellowBold
-		leftLines = append(leftLines, warningStyle.Render("  ⊘ All repos already up to date"))
-		leftLines = append(leftLines, "")
+		if failed == 0 {
+			warningStyle := ui.YellowBold
+			leftLines = append(leftLines, warningStyle.Render("  ⊘ All repos already up to date"))
+			leftLines = append(leftLines, "")
+		}
 		dimStyle := ui.Dim
 		leftLines = append(leftLines, dimStyle.Render("  Nothing to merge"))
 	} else {

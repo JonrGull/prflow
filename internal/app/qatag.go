@@ -202,7 +202,12 @@ func (m Model) renderQaTagResults() []string {
 
 	lines = append(lines, dimStyle.Render("   QA Tags:"))
 	for _, r := range m.qa.results {
-		if r.Success {
+		if r.Success && r.Warning != "" {
+			lines = append(lines, fmt.Sprintf("   %s %s %s",
+				ui.Yellow.Render("!"),
+				ticketStyle.Render(r.Ticket),
+				dimStyle.Render(r.Warning)))
+		} else if r.Success {
 			lines = append(lines, fmt.Sprintf("   %s %s",
 				successStyle.Render("✓"),
 				ticketStyle.Render(r.Ticket)))

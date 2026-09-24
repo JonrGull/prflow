@@ -363,6 +363,18 @@ func screenCases() []screenCase {
 	rightCol.batch.beIndex = 1
 	cases = append(cases, screenCase{"batch_repo_select_right_column", ScreenBatchRepoSelect, rightCol})
 
+	// A failed fetch used to read as "0 commits, up to date". The cursor is on
+	// the failed repo so its preview renders the error.
+	fetchFailed := populatedModel()
+	fetchFailed.batch.column = 1
+	fetchFailed.batch.beIndex = 1
+	fetchFailed.batch.repoCommits[2] = &[]models.CommitInfo{}
+	fetchFailed.batch.repoErrs = []string{"", "", "git fetch: fatal: couldn't find remote ref staging", ""}
+	fetchFailed.batch.reposWithCommits = 2
+	cases = append(cases,
+		screenCase{"batch_repo_select_fetch_failed", ScreenBatchRepoSelect, fetchFailed},
+		screenCase{"batch_confirmation_fetch_failed", ScreenBatchConfirmation, fetchFailed})
+
 	// Filtering changes the list and suppresses group/parent headers.
 	filteredRepos := populatedModel()
 	filteredRepos.batch.filter = "a"
@@ -592,6 +604,7 @@ func populatedModel() Model {
 	m.qa.results = []linear.QaTagResult{
 		{Ticket: "PROJ-1234", Success: true},
 		{Ticket: "PROJ-5678", Success: false, Error: "issue not found"},
+		{Ticket: "PROJ-9012", Success: true, Warning: "not subscribed: Entity not found: User"},
 	}
 
 	// Actions
