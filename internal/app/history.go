@@ -155,7 +155,7 @@ func (m Model) handleSessionHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "o":
 		// Open selected URL
 		if m.historyIndex < len(m.sessionPRs) {
-			_ = openURL(m.sessionPRs[m.historyIndex].url)
+			m.openInBrowser(m.sessionPRs[m.historyIndex].url)
 		}
 	case "c":
 		// Copy selected URL as markdown

@@ -293,7 +293,7 @@ func (m Model) handleViewOpenPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loadingMessage = "Fetching open PRs..."
 			return m, fetchOpenPRsCmd(m.config, m.dryRun)
 		case "o":
-			openURLs(urls(m.openPRLinks()))
+			m.openInBrowser(urls(m.openPRLinks())...)
 		case "c":
 			m.copyLinks(m.openPRLinks(), "Copied URLs!")
 			return m, nil
@@ -399,7 +399,7 @@ func (m Model) handleMergeSummaryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.shouldQuit = true
 		return m, tea.Quit
 	case "o":
-		openURLs(urls(m.mergedPRLinks()))
+		m.openInBrowser(urls(m.mergedPRLinks())...)
 	case "c":
 		m.copyLinks(m.mergedPRLinks(), "Copied URLs!")
 		return m, nil

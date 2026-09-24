@@ -406,14 +406,18 @@ func (m Model) handleListEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.list.success = false
 			return m, nil
 		}
-		m.list.rows = append(m.list.rows[:m.list.row], m.list.rows[m.list.row+1:]...)
+		before, beforeRow := m.list.rows, m.list.row
+		m.list.rows = append(append([][]string{}, m.list.rows[:m.list.row]...), m.list.rows[m.list.row+1:]...)
 		if m.list.row >= len(m.list.rows) && m.list.row > 0 {
 			m.list.row--
 		}
 		m.list.cell = 0
 		// Deleting stores the whole table too, so it needs the same check —
-		// otherwise removing a good row was a way to persist a bad one.
+		// otherwise removing a good row was a way to persist a bad one. A
+		// refused delete puts the row back: it used to vanish from the screen
+		// while staying in the config, and reappear after Esc.
 		if err := m.validateListRows(setting); err != nil {
+			m.list.rows, m.list.row = before, beforeRow
 			m.list.feedback = err.Error()
 			m.list.success = false
 			return m, nil

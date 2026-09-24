@@ -360,7 +360,7 @@ func (m Model) handleCompleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.navigateToMergePRs()
 	case "o":
 		if m.prURL != "" {
-			_ = openURL(m.prURL)
+			m.openInBrowser(m.prURL)
 		}
 	case "c":
 		if m.prURL != "" {

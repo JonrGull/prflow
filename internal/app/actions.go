@@ -432,7 +432,7 @@ func (m Model) handleActionsOverviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if m.actions.pinnedIndex < len(m.actions.pinned) {
 					panel := m.actions.pinned[m.actions.pinnedIndex]
 					if panel.Run.URL != "" {
-						_ = openURL(panel.Run.URL)
+						m.openInBrowser(panel.Run.URL)
 					}
 				}
 			case "q":
@@ -537,7 +537,7 @@ func (m Model) handleActionsOverviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.actions.index < len(filtered) {
 				entry := m.actions.entries[filtered[m.actions.index]]
 				if entry.Run.URL != "" {
-					_ = openURL(entry.Run.URL)
+					m.openInBrowser(entry.Run.URL)
 				}
 			}
 		}

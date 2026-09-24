@@ -372,6 +372,35 @@ func (m Model) renderPullSummaryWithHeight(availableHeight int) string {
 	yellowStyle := ui.YellowBold
 	redStyle := ui.RedBold
 
+	// Most important first: the box cuts what does not fit, and failures used
+	// to be the last section, so they were what got cut.
+	// Failed
+	if failed := resultsByStatus[models.PullFailed]; len(failed) > 0 {
+		lines = append(lines, redStyle.Render(fmt.Sprintf("Failed (%d):", len(failed))))
+		for _, r := range failed {
+			lines = append(lines, "  "+repoStyle.Render(r.Repo.DisplayName)+dimStyle.Render(" - "+r.Error))
+		}
+		lines = append(lines, "")
+	}
+
+	// Skipped - dirty
+	if dirty := resultsByStatus[models.PullSkippedDirty]; len(dirty) > 0 {
+		lines = append(lines, yellowStyle.Render(fmt.Sprintf("Skipped - local changes (%d):", len(dirty))))
+		for _, r := range dirty {
+			lines = append(lines, "  "+dimStyle.Render(r.Repo.DisplayName))
+		}
+		lines = append(lines, "")
+	}
+
+	// Skipped - no branch
+	if noBranch := resultsByStatus[models.PullSkippedNoBranch]; len(noBranch) > 0 {
+		lines = append(lines, yellowStyle.Render(fmt.Sprintf("Skipped - no branch (%d):", len(noBranch))))
+		for _, r := range noBranch {
+			lines = append(lines, "  "+dimStyle.Render(r.Repo.DisplayName))
+		}
+		lines = append(lines, "")
+	}
+
 	// Updated
 	if updated := resultsByStatus[models.PullUpdated]; len(updated) > 0 {
 		lines = append(lines, greenStyle.Render(fmt.Sprintf("Updated (%d):", len(updated))))
@@ -390,31 +419,11 @@ func (m Model) renderPullSummaryWithHeight(availableHeight int) string {
 		lines = append(lines, "")
 	}
 
-	// Skipped - no branch
-	if noBranch := resultsByStatus[models.PullSkippedNoBranch]; len(noBranch) > 0 {
-		lines = append(lines, yellowStyle.Render(fmt.Sprintf("Skipped - no branch (%d):", len(noBranch))))
-		for _, r := range noBranch {
-			lines = append(lines, "  "+dimStyle.Render(r.Repo.DisplayName))
-		}
-		lines = append(lines, "")
-	}
-
-	// Skipped - dirty
-	if dirty := resultsByStatus[models.PullSkippedDirty]; len(dirty) > 0 {
-		lines = append(lines, yellowStyle.Render(fmt.Sprintf("Skipped - local changes (%d):", len(dirty))))
-		for _, r := range dirty {
-			lines = append(lines, "  "+dimStyle.Render(r.Repo.DisplayName))
-		}
-		lines = append(lines, "")
-	}
-
-	// Failed
-	if failed := resultsByStatus[models.PullFailed]; len(failed) > 0 {
-		lines = append(lines, redStyle.Render(fmt.Sprintf("Failed (%d):", len(failed))))
-		for _, r := range failed {
-			lines = append(lines, "  "+repoStyle.Render(r.Repo.DisplayName)+dimStyle.Render(" - "+r.Error))
-		}
-		lines = append(lines, "")
+	// Say what did not fit rather than cut it silently. The box holds its
+	// title line plus availableHeight-1 lines.
+	if room := availableHeight - 1; room > 1 && len(lines) > room {
+		hidden := len(lines) - (room - 1)
+		lines = append(lines[:room-1], dimStyle.Render(fmt.Sprintf("… %d more lines not shown", hidden)))
 	}
 
 	content := strings.Join(lines, "\n")

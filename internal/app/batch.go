@@ -192,15 +192,27 @@ func fetchBatchCommitsCmd(repos []models.RepoInfo, selected []bool, cachedCommit
 }
 
 func startBatchProcessingCmd(m *Model, repoIndex int) tea.Cmd {
+	// Everything the command needs is read here, on the UI goroutine. It runs
+	// on another one, where reading m raced with Update; startMergingCmd was
+	// changed to take values for the same reason.
+	if repoIndex >= len(m.batch.repos) {
+		return nil
+	}
+	repo := m.batch.repos[repoIndex]
+	selected := repoIndex < len(m.batch.selected) && m.batch.selected[repoIndex]
+	progressCh := m.batch.progressChan
+	dryRun := m.dryRun
+	var flow *models.Flow
+	if m.flow != nil {
+		f := *m.flow
+		flow = &f
+	}
+	title := m.prTitle
+	ticketRegex := m.config.TicketRegex()
+	linearOrg := m.config.Tickets.LinearOrg
+
 	return func() tea.Msg {
-		if repoIndex >= len(m.batch.repos) {
-			return nil
-		}
-
-		repo := m.batch.repos[repoIndex]
-		progressCh := m.batch.progressChan
-
-		if repoIndex >= len(m.batch.selected) || !m.batch.selected[repoIndex] {
+		if !selected {
 			// Skip unselected repos
 			return batchRepoResult{result: models.BatchResult{
 				Repo:   repo,
@@ -208,19 +220,19 @@ func startBatchProcessingCmd(m *Model, repoIndex int) tea.Cmd {
 			}}
 		}
 
-		if m.dryRun {
+		if dryRun {
 			sendProgress(progressCh, "Simulating PR creation...")
 			return dryRunBatchRepoResult(repo)
 		}
 
 		// Use the selected PR type
-		if m.flow == nil {
+		if flow == nil {
 			return batchRepoResult{result: models.BatchResult{
 				Repo:   repo,
 				Status: models.Failed("No PR type selected"),
 			}}
 		}
-		flow := *m.flow
+		flow := *flow
 		headBranch := flow.HeadBranch()
 		baseBranch := flow.BaseBranch(repo.MainBranch)
 
@@ -235,7 +247,7 @@ func startBatchProcessingCmd(m *Model, repoIndex int) tea.Cmd {
 
 		// Get commits
 		sendProgress(progressCh, "Getting commits...")
-		commits, err := git.GetCommitsBetween(repo.Path, baseBranch, headBranch, m.config.TicketRegex())
+		commits, err := git.GetCommitsBetween(repo.Path, baseBranch, headBranch, ticketRegex)
 		if err != nil {
 			return batchRepoResult{result: models.BatchResult{
 				Repo:   repo,
@@ -254,7 +266,7 @@ func startBatchProcessingCmd(m *Model, repoIndex int) tea.Cmd {
 
 		// Create or update PR
 		sendProgress(progressCh, "Creating PR...")
-		pr, updated, err := github.CreateOrUpdatePR(repo.Path, headBranch, baseBranch, m.prTitle, tickets, m.config.Tickets.LinearOrg)
+		pr, updated, err := github.CreateOrUpdatePR(repo.Path, headBranch, baseBranch, title, tickets, linearOrg)
 		if err != nil {
 			return batchRepoResult{result: models.BatchResult{
 				Repo:   repo,
@@ -511,6 +523,26 @@ func (m Model) handleBatchRepoResult(msg batchRepoResult) (tea.Model, tea.Cmd) {
 	)
 }
 
+// batchDefaultBranch names the default branch for a batch's title and
+// diagram: the selected repos' own, when they share one. It was always "main",
+// so a batch of master repos was titled and drawn as merging into main.
+func (m Model) batchDefaultBranch() string {
+	branch := ""
+	for i, repo := range m.batch.repos {
+		if i >= len(m.batch.selected) || !m.batch.selected[i] {
+			continue
+		}
+		if branch != "" && repo.MainBranch != branch {
+			return "default branch"
+		}
+		branch = repo.MainBranch
+	}
+	if branch == "" {
+		return "default branch"
+	}
+	return branch
+}
+
 // cancelBatchFetch cancels background fetches (channel is closed by sender goroutine)
 func (m *Model) cancelBatchFetch() {
 	if m.batch.fetchCancel != nil {
@@ -583,7 +615,7 @@ func (m Model) handleBatchRepoSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.flow != nil {
-			m.prTitle = m.flow.DefaultTitle("main")
+			m.prTitle = m.flow.DefaultTitle(m.batchDefaultBranch())
 		}
 		// The fetch keeps running either way; its result handler moves on
 		// once the last selected repo arrives.
@@ -673,7 +705,7 @@ func (m Model) handleBatchSummaryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.menuIndex++
 		}
 	case "o":
-		openURLs(urls(m.batchPRLinks()))
+		m.openInBrowser(urls(m.batchPRLinks())...)
 	case "c":
 		m.copyLinks(m.batchPRLinks(), "Copied URLs!")
 		return m, nil
@@ -1022,7 +1054,8 @@ func (m Model) batchConfirmLeft(availableHeight int) (content string, height int
 
 	// Branch flow diagram
 	if m.flow != nil {
-		leftLines = append(leftLines, ui.BranchFlowDiagram(m.flow.HeadBranch(), m.flow.BaseBranch("main"), m.branchColor(m.flow.HeadBranch()), m.branchColor(m.flow.BaseBranch("main"))))
+		base := m.flow.BaseBranch(m.batchDefaultBranch())
+		leftLines = append(leftLines, ui.BranchFlowDiagram(m.flow.HeadBranch(), base, m.branchColor(m.flow.HeadBranch()), m.branchColor(base)))
 		leftLines = append(leftLines, "")
 	}
 

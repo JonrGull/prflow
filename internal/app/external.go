@@ -103,9 +103,17 @@ func copyToClipboard(text string) error {
 	}
 }
 
-// openURLs opens multiple URLs in the default browser
-func openURLs(urls []string) {
+// openInBrowser opens urls, and says so in the footer when it cannot. The
+// error used to be thrown away, so o did nothing and said nothing where there
+// is no xdg-open (common on WSL).
+func (m *Model) openInBrowser(urls ...string) {
 	for _, url := range urls {
-		_ = openURL(url)
+		if url == "" {
+			continue
+		}
+		if err := openURL(url); err != nil {
+			m.copyFeedback = "✗ Could not open a browser: " + err.Error()
+			return
+		}
 	}
 }

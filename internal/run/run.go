@@ -111,7 +111,13 @@ func exec_(timeout time.Duration, dir, stdin string, combined bool, name string,
 // browser, where blocking on the child would hang the UI for as long as the
 // browser stays open.
 func Detached(name string, args ...string) error {
-	return exec.Command(name, args...).Start()
+	cmd := exec.Command(name, args...)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Reaped in the background, or each one stays a zombie until prflow exits.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // LookPath reports whether a binary is on PATH.

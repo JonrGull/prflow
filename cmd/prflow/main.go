@@ -24,7 +24,9 @@ var (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "prflow",
+		Use: "prflow",
+		// "prflow dry-run" without the dashes used to run for real.
+		Args:  cobra.NoArgs,
 		Short: "TUI for managing GitHub release PRs",
 		RunE:  run,
 	}

@@ -120,3 +120,35 @@ func TestBatchFetchReportsAFailedFetch(t *testing.T) {
 		t.Errorf("fetch from a repo with no remote: err = nil, commits = %d", len(got.commits))
 	}
 }
+
+// The command reads what it needs when it is made, on the UI goroutine. It
+// used to read the model when it ran, on another goroutine, racing Update.
+func TestBatchCommandReadsTheModelWhenMade(t *testing.T) {
+	m := batchSelectModel()
+	m.batch.selected[0] = false
+	cmd := startBatchProcessingCmd(&m, 0)
+	m.batch.selected[0] = true // after the command was made
+
+	res, ok := cmd().(batchRepoResult)
+	if !ok || !models.IsStatusSkipped(res.result.Status) {
+		t.Errorf("got %+v, want the repo skipped as it was when the command was made", res)
+	}
+}
+
+// A batch of master repos was titled and drawn as merging into main.
+func TestBatchUsesTheReposDefaultBranch(t *testing.T) {
+	m := batchSelectModel()
+	m.batch.repos = []models.RepoInfo{
+		models.NewRepoInfo("/a", "G/a", "master", "G"),
+		models.NewRepoInfo("/b", "G/b", "master", "G"),
+		models.NewRepoInfo("/c", "G/c", "main", "G"),
+	}
+	m.batch.selected = []bool{true, true, false}
+	if got := m.batchDefaultBranch(); got != "master" {
+		t.Errorf("all master: %q", got)
+	}
+	m.batch.selected[2] = true
+	if got := m.batchDefaultBranch(); got != "default branch" {
+		t.Errorf("mixed: %q", got)
+	}
+}

@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"reflect"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/JonrGull/prflow/internal/config"
@@ -225,5 +227,19 @@ func TestPickingAStepStartsWithAFreshTitle(t *testing.T) {
 	got := next.(Model)
 	if got.prTitle != "" || len(got.tickets) != 0 {
 		t.Errorf("title %q, tickets %v carried into the new run", got.prTitle, got.tickets)
+	}
+}
+
+// Opening a URL threw its error away, so o did nothing and said nothing where
+// there is no xdg-open.
+func TestFailedBrowserOpenIsReported(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("depends on xdg-open being the opener")
+	}
+	t.Setenv("PATH", t.TempDir())
+	m := staleModel(ScreenMainMenu)
+	m.openInBrowser("https://example.test/pull/1")
+	if !strings.HasPrefix(m.copyFeedback, "✗") {
+		t.Errorf("copyFeedback = %q, want the failure shown", m.copyFeedback)
 	}
 }

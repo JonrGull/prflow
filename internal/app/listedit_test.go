@@ -384,3 +384,20 @@ func TestPastedNewlinesBecomeSpaces(t *testing.T) {
 		t.Errorf("typedText = %q", got)
 	}
 }
+
+// Deleting validates the whole table, and a refusal (another row is half
+// filled) used to leave the row gone from the screen while the config kept
+// it, so it came back after Esc.
+func TestRefusedDeleteKeepsTheRow(t *testing.T) {
+	m := listModel(t, listGlobs)
+	m.list.rows = [][]string{{"good/*", "Good"}, {"half/*", ""}}
+	m.list.row = 0
+	m = listKey(m, "d")
+	m = listKey(m, "d")
+	if len(m.list.rows) != 2 || m.list.rows[0][0] != "good/*" {
+		t.Errorf("rows = %v after a refused delete, want both kept", m.list.rows)
+	}
+	if m.list.success || m.list.feedback == "" {
+		t.Error("no message said why the delete was refused")
+	}
+}

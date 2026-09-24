@@ -75,3 +75,25 @@ func TestBatchConfirmationScrollsToTheEnd(t *testing.T) {
 		t.Error("the last ticket can never be scrolled into view")
 	}
 }
+
+// The pull summary box cut what did not fit, and Failed was the last section,
+// so failures were what disappeared. Failures now come first, and a cut says so.
+func TestPullSummaryShowsFailuresAndTheCut(t *testing.T) {
+	m := sized(staleModel(ScreenPullSummary))
+	m.height = 24
+	m.pull.branch = "dev"
+	for i := 0; i < 40; i++ {
+		m.pull.results = append(m.pull.results, models.PullResult{
+			Repo: models.NewRepoInfo("/r", fmt.Sprintf("G/repo-%02d", i), "main", "G"), Status: models.PullUpToDate})
+	}
+	m.pull.results = append(m.pull.results, models.PullResult{
+		Repo: models.NewRepoInfo("/r", "G/broken", "main", "G"), Status: models.PullFailed, Error: "network unreachable"})
+
+	v := m.View()
+	if !strings.Contains(v, "G/broken") {
+		t.Error("the failure was cut off")
+	}
+	if !strings.Contains(v, "more lines not shown") {
+		t.Error("the cut was silent")
+	}
+}

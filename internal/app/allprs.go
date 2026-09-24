@@ -244,7 +244,7 @@ func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.allPRs.index < len(m.allPRs.entries) {
 			entry := m.allPRs.entries[m.allPRs.index]
 			if entry.PR.URL != "" {
-				_ = openURL(entry.PR.URL)
+				m.openInBrowser(entry.PR.URL)
 			}
 		}
 	case "r":
