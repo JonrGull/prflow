@@ -136,3 +136,59 @@ func TestMergeRefusesWithoutAHeadCommit(t *testing.T) {
 		t.Errorf("gh was called: %s", args())
 	}
 }
+
+// fakeGhAuth puts a gh on PATH whose "auth token" and "auth status" print the
+// given output and exit with the given code.
+func fakeGhAuth(t *testing.T, tokenOut string, tokenCode int, statusOut string, statusCode int) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("needs sh")
+	}
+	dir := t.TempDir()
+	script := fmt.Sprintf(`#!/bin/sh
+case "$1 $2" in
+  "auth token") printf '%%s' %q; exit %d ;;
+  "auth status") printf '%%s' %q; exit %d ;;
+esac
+exit 2
+`, tokenOut, tokenCode, statusOut, statusCode)
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// gh auth status fails when any stored account is bad or the network is down,
+// and its exit code used to lock every screen behind "not authenticated".
+func TestCheckAuth(t *testing.T) {
+	const ok = "github.com\n  ✓ Logged in to github.com account octo (keyring)\n"
+	cases := []struct {
+		name       string
+		tokenOut   string
+		tokenCode  int
+		statusOut  string
+		statusCode int
+		wantUser   string
+		wantErr    bool
+	}{
+		{"logged in", "gho_x", 0, ok, 0, "octo", false},
+		{"another account expired", "gho_x", 0, ok + "  X Failed to log in to github.com account old (keyring)\n", 1, "octo", false},
+		{"offline", "gho_x", 0, "  X Timeout trying to log in to github.com account octo (keyring)\n", 1, "octo", false},
+		{"offline, no output", "gho_x", 0, "", 1, "", false},
+		{"not logged in", "no oauth token found for github.com", 1, "", 1, "", true},
+		{"old gh, logged in", `unknown command "token" for "gh auth"`, 1, ok, 0, "octo", false},
+		{"old gh, not logged in", `unknown command "token" for "gh auth"`, 1, "", 1, "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeGhAuth(t, tc.tokenOut, tc.tokenCode, tc.statusOut, tc.statusCode)
+			user, err := CheckAuth()
+			if (err != nil) != tc.wantErr {
+				t.Errorf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if user != tc.wantUser {
+				t.Errorf("user = %q, want %q", user, tc.wantUser)
+			}
+		})
+	}
+}

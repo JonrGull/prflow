@@ -75,11 +75,13 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) selectMainMenuItem() (tea.Model, tea.Cmd) {
-	// Check for auth error before any GitHub operation (except Quit)
+	// Check for auth error before any GitHub operation (except Quit). The check
+	// runs again each time, so logging in from another terminal takes effect
+	// without a restart.
 	if m.authError != nil && m.menuIndex != 5 {
 		m.screen = ScreenError
 		m.errorMessage = m.authError.Error()
-		return m, nil
+		return m, authCheckCmd()
 	}
 
 	// Sync activeTab with menu selection (for tabs 0-4)

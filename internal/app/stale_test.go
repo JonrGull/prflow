@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -185,5 +186,26 @@ func TestTabKeysIgnoredWhileAWriteRuns(t *testing.T) {
 		if got.screen != s || got.epoch != m.epoch {
 			t.Errorf("] on %v went to %v (epoch %d → %d)", s, got.screen, m.epoch, got.epoch)
 		}
+	}
+}
+
+// A failed auth check used to stick for the whole session: after gh auth login
+// in another terminal, every menu item still said "not authenticated".
+func TestAuthIsCheckedAgainAfterAFailure(t *testing.T) {
+	m := staleModel(ScreenMainMenu)
+	m.authError = errors.New("not authenticated")
+	m.menuIndex = 3
+
+	next, cmd := m.selectMainMenuItem()
+	m = next.(Model)
+	if m.screen != ScreenError || cmd == nil {
+		t.Fatalf("screen %v, recheck %v: want the error and a new check", m.screen, cmd != nil)
+	}
+
+	m = send(t, m, authCheckResult{user: "octo"})
+	m.screen = ScreenMainMenu
+	next, _ = m.selectMainMenuItem()
+	if next.(Model).screen == ScreenError {
+		t.Error("still blocked after the check passed")
 	}
 }

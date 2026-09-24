@@ -12,23 +12,44 @@ import (
 )
 
 // CheckAuth verifies gh CLI is authenticated and returns the active username
+//
+// It used to take gh auth status's exit code as the answer. That command checks
+// every stored account over the network, so one expired account, or simply
+// being offline, failed it while the active login was fine, and every screen
+// said "not authenticated" until a restart. gh auth token reads the stored
+// login without the network, so it answers only the question asked.
 func CheckAuth() (string, error) {
-	output, err := run.Combined(run.Network, "", "gh", "auth", "status")
+	notAuthed := fmt.Errorf("not authenticated with GitHub CLI. Run 'gh auth login', then try again")
+	out, err := run.Combined(run.Local, "", "gh", "auth", "token")
 	if err != nil {
-		return "", fmt.Errorf("not authenticated with GitHub CLI. Run 'gh auth login' first")
+		// gh before 2.17 has no auth token; fall back to the old check there.
+		if !strings.Contains(string(out), "unknown command") {
+			return "", notAuthed
+		}
+		if _, err := run.Combined(run.Network, "", "gh", "auth", "status"); err != nil {
+			return "", notAuthed
+		}
 	}
-	// Parse "Logged in to github.com account <username>"
-	for _, line := range strings.Split(string(output), "\n") {
+	// The account name is only shown in the header, so a failed status still
+	// yields it when the output names the account.
+	status, _ := run.Combined(run.Network, "", "gh", "auth", "status")
+	return parseAuthUser(string(status)), nil
+}
+
+// parseAuthUser finds the account in gh auth status output: "Logged in to
+// github.com account <name>", or the same account in a failure line.
+func parseAuthUser(output string) string {
+	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		if idx := strings.Index(line, "account "); idx != -1 {
 			rest := line[idx+len("account "):]
 			if sp := strings.IndexByte(rest, ' '); sp != -1 {
-				return rest[:sp], nil
+				return rest[:sp]
 			}
-			return rest, nil
+			return rest
 		}
 	}
-	return "", nil
+	return ""
 }
 
 // GetExistingPR gets an existing open PR for the given head -> base branch
