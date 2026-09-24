@@ -211,7 +211,7 @@ func (m Model) handleFirstRunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.firstRun.value += " "
 		m.firstRun.preview = firstRunPreview{}
 	case tea.KeyRunes:
-		m.firstRun.value += string(msg.Runes)
+		m.firstRun.value += typedText(msg.Runes)
 		m.firstRun.preview = firstRunPreview{}
 	case tea.KeyEsc:
 		// Skip setup. The config is still written so the app does not ask

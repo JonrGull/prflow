@@ -2,6 +2,8 @@ package app
 
 import (
 	"reflect"
+	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -24,6 +26,23 @@ func trimLastRune(s string) string {
 		return s
 	}
 	return string(r[:len(r)-1])
+}
+
+// typedText is what a key press adds to a text field. A paste arrives as one
+// key press and kept its newlines and tabs, which no field here can hold; they
+// become spaces, and other control characters are dropped.
+func typedText(r []rune) string {
+	var b strings.Builder
+	for _, c := range r {
+		switch {
+		case c == '\n' || c == '\r' || c == '\t':
+			b.WriteByte(' ')
+		case unicode.IsControl(c):
+		default:
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }
 
 // numKeyIndex converts a number key string ("1"-"9") to a 0-based index.

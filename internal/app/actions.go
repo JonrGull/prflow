@@ -502,7 +502,7 @@ func (m Model) handleActionsOverviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyRunes:
 		key := string(msg.Runes)
 		if m.actions.filterActive {
-			m.actions.filter += key
+			m.actions.filter += typedText(msg.Runes)
 			m.actions.index = 0
 			m.actions.runScroll = 0
 			return m, nil

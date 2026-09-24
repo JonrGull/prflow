@@ -294,9 +294,11 @@ func Load() (*Config, error) {
 		cfg.Flows = defaults.Flows
 	}
 
-	if err := cfg.compileRegex(); err != nil {
-		return nil, err
-	}
+	// A pattern that does not compile disables extraction instead of stopping
+	// the app: Validate reports it, and the settings screen, which is where it
+	// can be fixed, has to be reachable. It used to make Load fail, so prflow
+	// would not start at all.
+	_ = cfg.compileRegex()
 
 	// Adopt update bookkeeping that older versions kept in the config file.
 	cfg.state = LoadState()

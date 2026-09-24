@@ -110,8 +110,11 @@ func TestLoadStateReadsThePreRenameFile(t *testing.T) {
 	}
 
 	st := LoadState()
-	if st.SkippedVersion != "v9.9.9" {
-		t.Errorf("skipped version = %q, want the migrated value", st.SkippedVersion)
+	// Not carried over: it was skipped under the old update.repo, which named
+	// a different tool's releases, so it could hide a prflow release that
+	// shares the tag.
+	if st.SkippedVersion != "" {
+		t.Errorf("skipped version = %q, want it dropped", st.SkippedVersion)
 	}
 	want := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	if !st.LastCheck.Equal(want) {

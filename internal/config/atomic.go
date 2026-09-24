@@ -54,6 +54,11 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 		cleanup()
 		return err
 	}
+	// An existing file keeps its mode: a config someone made 0600 used to be
+	// reset to 0644 by every save.
+	if info, err := os.Stat(path); err == nil {
+		perm = info.Mode().Perm()
+	}
 	if err := tmp.Chmod(perm); err != nil {
 		cleanup()
 		return err
@@ -66,6 +71,12 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		os.Remove(tmpName)
 		return err
+	}
+	// Persist the rename itself, or a crash right after it can bring back the
+	// old file. Best effort: not every platform can sync a directory.
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		d.Close()
 	}
 	return nil
 }

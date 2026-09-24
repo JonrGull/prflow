@@ -363,3 +363,24 @@ func contains(s, sub string) bool {
 	}
 	return false
 }
+
+// The editor trimmed every cell, but a flow title keeps its trailing space:
+// "Sprint # " seeds the title input ready for the number.
+func TestListEditorKeepsATitlesTrailingSpace(t *testing.T) {
+	m := listModel(t, listFlows)
+	m.list.row, m.list.cell = 0, 2
+	m.list.editing = true
+	m.list.editValue = "Sprint # "
+	m = listKey(m, "enter")
+	if got := m.config.Flows[0].Title; got != "Sprint # " {
+		t.Errorf("title = %q, want %q", got, "Sprint # ")
+	}
+}
+
+// A paste arrives as one key press and kept its newlines, which no field can
+// hold.
+func TestPastedNewlinesBecomeSpaces(t *testing.T) {
+	if got := typedText([]rune("Sprint\r\n42\t!\x07")); got != "Sprint  42 !" {
+		t.Errorf("typedText = %q", got)
+	}
+}

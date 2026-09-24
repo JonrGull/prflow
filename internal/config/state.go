@@ -43,18 +43,25 @@ func LoadState() *State {
 	if err != nil {
 		return &State{}
 	}
+	legacy := false
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// Fall back to the pre-rename filename, so an upgrade does not forget a
-		// skipped version or trigger an immediate update check.
+		// Fall back to the pre-rename filename, so an upgrade does not trigger
+		// an immediate update check.
 		data, err = os.ReadFile(filepath.Join(filepath.Dir(path), legacyStateName))
 		if err != nil {
 			return &State{}
 		}
+		legacy = true
 	}
 	var s State
 	if err := toml.Unmarshal(data, &s); err != nil {
 		return &State{}
+	}
+	if legacy {
+		// Skipped under the old update.repo, a different tool's releases (see
+		// Load), so it could hide a prflow release that happens to share the tag.
+		s.SkippedVersion = ""
 	}
 	return &s
 }

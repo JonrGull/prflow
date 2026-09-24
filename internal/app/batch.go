@@ -614,7 +614,7 @@ func (m Model) handleBatchRepoSelectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case tea.KeyRunes:
 		// Type to filter - all printable characters go to filter
-		m.batch.filter += string(msg.Runes)
+		m.batch.filter += typedText(msg.Runes)
 		m.batch.feIndex = 0
 		m.batch.beIndex = 0
 	}

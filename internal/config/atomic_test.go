@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -153,4 +154,26 @@ func TestWriteFileAtomicPlainFile(t *testing.T) {
 			t.Errorf("directory holds %v, want just the config", names)
 		}
 	})
+}
+
+// Every save forced 0644, so a config someone had made 0600 became readable
+// by everyone on the machine.
+func TestWriteFileAtomicKeepsTheFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix modes")
+	}
+	path := filepath.Join(t.TempDir(), "prflow.toml")
+	if err := os.WriteFile(path, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeFileAtomic(path, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %v after saving, want 0600 kept", info.Mode().Perm())
+	}
 }

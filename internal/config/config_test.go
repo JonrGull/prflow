@@ -500,3 +500,28 @@ func TestOmittedSettingsGetDefaults(t *testing.T) {
 		t.Errorf("a file that omits them got %+v %+v %+v %+v", cfg.Paths, cfg.Globs, cfg.Flows, cfg.Columns)
 	}
 }
+
+// A bad pattern typed into the file made Load fail, so prflow would not start
+// and the settings screen that could fix it was out of reach.
+func TestBadTicketPatternDoesNotStopTheApp(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	if err := os.WriteFile(filepath.Join(dir, configName), []byte("[tickets]\npattern = '[A-Z'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.TicketRegex() != nil || cfg.Tickets.Pattern != "[A-Z" {
+		t.Error("want extraction off with the pattern kept for the settings screen")
+	}
+	found := false
+	for _, d := range cfg.Validate() {
+		found = found || d.Field == "tickets.pattern"
+	}
+	if !found {
+		t.Error("no diagnostic says why tickets stopped")
+	}
+}

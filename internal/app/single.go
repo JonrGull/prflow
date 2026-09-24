@@ -255,7 +255,7 @@ func (m Model) handleCommitReviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.shouldQuit = true
 			return m, tea.Quit
 		}
-		m.prTitle += key
+		m.prTitle += typedText(msg.Runes)
 	}
 	return m, nil
 }
@@ -287,7 +287,7 @@ func (m Model) handleTitleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeySpace:
 		m.prTitle += " "
 	case tea.KeyRunes:
-		m.prTitle += string(msg.Runes)
+		m.prTitle += typedText(msg.Runes)
 	}
 	return m, nil
 }

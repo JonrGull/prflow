@@ -336,7 +336,9 @@ func (m Model) handleListEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.list.editing {
 		switch msg.Type {
 		case tea.KeyEnter:
-			m.list.rows[m.list.row][m.list.cell] = strings.TrimSpace(m.list.editValue)
+			// As typed: each Store trims what it needs, and the flow title
+			// keeps a trailing space ("Sprint # "), which trimming here lost.
+			m.list.rows[m.list.row][m.list.cell] = m.list.editValue
 			m.list.editing = false
 			m.commitListRows()
 		case tea.KeyEsc:
@@ -347,7 +349,7 @@ func (m Model) handleListEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case tea.KeySpace:
 			m.list.editValue += " "
 		case tea.KeyRunes:
-			m.list.editValue += string(msg.Runes)
+			m.list.editValue += typedText(msg.Runes)
 		}
 		return m, nil
 	}

@@ -351,7 +351,7 @@ func (m Model) handleSettingsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case tea.KeySpace:
 			m.settings.editValue += " "
 		case tea.KeyRunes:
-			m.settings.editValue += string(msg.Runes)
+			m.settings.editValue += typedText(msg.Runes)
 		}
 		return m, nil
 	}
