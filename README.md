@@ -7,9 +7,9 @@
 
 TUI for creating and managing GitHub release PRs across multiple repositories.
 
-Define the chain a release moves through — `dev → staging → main`, or whatever
-your team actually uses — and prflow opens, tracks and merges the PRs for each
-step across every repo at once.
+Define the chain a release moves through, such as `dev → staging → main` or
+whatever your team actually uses, and prflow opens, tracks and merges the PRs
+for each step across every repo at once.
 
 https://github.com/user-attachments/assets/9561e0b3-60f6-4731-a164-887d092c58be
 
@@ -46,12 +46,12 @@ prflow --dry-run    # Test without GitHub access
 
 `--dry-run` makes no changes anywhere: no GitHub or Linear calls, no update
 check, and no config writes. Settings and list edits still take effect for the
-session so the screens behave normally — they just say so instead of saving.
+session so the screens behave normally, but they say so instead of saving.
 It is the right way to try a build you have not run before.
 
 ### Navigation
 
-Press `?` in the app for the bindings on the current screen — that list is
+Press `?` in the app for the bindings on the current screen. That list is
 generated from the same table the footer uses, so it is always current.
 The keys that work almost everywhere:
 
@@ -67,7 +67,7 @@ The keys that work almost everywhere:
 | `[` / `]` | Previous/next tab (Home is the first) |
 | `F` | Toggle fullscreen (hides the header) |
 | `Esc` | Go back |
-| `q` | Quit — except on the error screen, where it goes back |
+| `q` | Quit, except on the error screen, where it goes back |
 | `Ctrl+C` | Quit from anywhere |
 
 Home only: `1`–`6` open a screen, `r` refresh the dashboard, `a` Actions,
@@ -76,8 +76,8 @@ Home only: `1`–`6` open a screen, `r` refresh the dashboard, `a` Actions,
 
 ## Features
 
-- **Dashboard**: Home shows the release at a glance — commits waiting at each
-  step of the chain, open release PRs and which are ready to merge, what needs
+- **Dashboard**: Home shows the release at a glance, with the commits waiting
+  at each step of the chain, open release PRs and which are ready to merge, what needs
   attention (failing CI, conflicts, changes requested, commits with no PR), and
   recent Actions runs. It loads in the background and refreshes with `r`
 - **Trunk-based mode**: for teams working straight on `main`. Turn on
@@ -105,12 +105,12 @@ Home only: `1`–`6` open a screen, `r` refresh the dashboard, `a` Actions,
 - **Ticket Extraction**: Automatically extracts ticket IDs from commit messages
 - **Auto-Update**: Checks for updates on startup and prompts to install
 - **Configurable release chain**: Define the steps a release moves through in
-  `[[flows]]` — two, three or more — and every screen follows them
+  `[[flows]]` (two, three or more), and every screen follows them
 - **In-app settings**: Every config value is editable from the settings screen,
-  including the release steps and the glob, repo and column lists — no need to
-  quit and open the TOML
+  including the release steps and the glob, repo and column lists, so there is
+  no need to quit and open the TOML
 - **Config validation**: Flags a scan directory that doesn't exist, globs that
-  match nothing, and group names assigned to neither column — problems that
+  match nothing, and group names assigned to neither column: problems that
   otherwise show up only as an unexplained empty list
 
 ## Configuration
@@ -122,8 +122,8 @@ a column entry can't drift from the globs that produce it. Changes are saved as
 you confirm them, and validation re-runs immediately, so a warning about a
 misconfigured group clears the moment you fix it.
 
-The file is still there if you prefer it, and hand-written comments survive —
-the app only rewrites the config when you deliberately change a setting.
+The file is still there if you prefer it, and hand-written comments survive,
+because the app only rewrites the config when you deliberately change a setting.
 
 Config is created on first run, which offers to scan a directory for repos and
 shows what it found before saving:
@@ -175,7 +175,7 @@ title = 'Sprint # '                       # seeds the PR title input
 [tickets]
 # Regex pattern for extracting ticket IDs from commits. Empty disables extraction.
 # The default matches any ABC-123-style key, which also catches lookalikes such
-# as UTF-8 — set your project's own prefix to avoid that. Letters you write match
+# as UTF-8, so set your project's own prefix to avoid that. Letters you write match
 # either case, so PROJ-[0-9]+ also finds proj-12 in a branch name; [A-Z] means
 # upper case only. Start the pattern with (?i) to make all of it case-insensitive.
 pattern = "PROJ-[0-9]+"
@@ -183,7 +183,7 @@ pattern = "PROJ-[0-9]+"
 linear_org = "my-org"
 # Linear display name to tag for QA after a merge; empty disables QA tagging
 qa_person = ""
-# Linear user UUID — set automatically after a successful lookup, skips it next time
+# Linear user UUID. Set automatically after a successful lookup, so the next run skips it
 qa_person_id = ""
 # Show the QA tagging screen after merging
 qa_tagging = true
@@ -198,8 +198,8 @@ repo = "JonrGull/prflow"
 The Linear API key is read from `$LINEAR_API_KEY`, or from a
 `LINEAR_API_KEY=` line in `~/.secrets`. It is never stored in the config file.
 
-Values the app writes for itself — when it last checked for an update, and any
-version you skipped — live in `prflow-state.toml` beside the config, so merely
+Values the app writes for itself (when it last checked for an update, and any
+version you skipped) live in `prflow-state.toml` beside the config, so merely
 launching prflow never rewrites the file you edited.
 
 Older configs are migrated automatically on load: `frontend_glob`/`backend_glob`
