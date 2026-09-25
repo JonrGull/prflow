@@ -38,6 +38,7 @@ go test ./internal/app -update               # Re-record screen goldens after an
   - `keys.go` - Per-screen key hints as data (footer + `?` overlay)
   - `home.go` - The dashboard's data: one fetch, three requests, a pure `buildHomeData`
   - `prstatus.go` - The derived review/CI/preview rules for the all-PRs table
+  - `practions.go` - The all-PRs table's merge, re-run and worktree actions
   - `flows.go` - The configured release steps, and the colour palettes every
     screen indexes them by
   - `dryrun.go` - The fake data `--dry-run` returns, and its delays
@@ -187,7 +188,7 @@ it. The `[[flows]]` stay saved but unused, so switching back restores them.
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (80 cases in
+golden renders of every screen plus its interesting states (82 cases in
 `internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a
@@ -207,6 +208,12 @@ without all three, renders differ between runs, machines and operating systems.
 - **One row per PR:** the fetch goes through `githubRepos`, one entry per GitHub repo. It searched every checkout, so a repo with a worktree under the repos dir had its PRs listed twice, under the worktree's folder name.
 - **Review requests** come from one REST list per repo (`github.PRsAwaitingReviewers`), since GraphQL leaves out bot reviewers. Asking once per PR, one after another, made the screen take 35s.
 - **Mine** (`@`) shows the PRs the viewer wrote, reviewed, or was asked to review, directly or through a team (`involvesViewer`). The fetch returns the viewer and their teams (`github.Viewer`). Everything that acts on "the highlighted PR" goes through `highlightedPR`, and the cursor is held by PR URL across refreshes, sorting and the toggle (`selectPR`): a refresh used to keep the row, so a PR merged above the cursor moved it onto another.
+- **Actions on the highlighted PR** (`practions.go`): `m` merges, `R` re-runs failed checks, `w` checks it out into a worktree.
+  - Merge and re-run are checked first (`prCheckResult`, a flowResult), then wait in `allPRs.pending` for `y`. While a prompt is up, `isTextInputActive` gives every key to it, and any key but `y` only cancels.
+  - A merge needs `CLEAN` or `HAS_HOOKS` and the head the list showed, and uses the viewer's default method (`viewerDefaultMergeMethod`): the repos differ, squash in one and merge commits in another. `--match-head-commit` makes GitHub refuse it if the branch moves after the check.
+  - A re-run takes the newest run per workflow and event on the head commit (`github.FailedRunsFor`); an older failure a later run replaced is not what the PR shows.
+  - The worktree goes in `<main checkout>/.worktrees/pr-N` (`git.MainWorktree` finds the main one from any worktree), with `/.worktrees/` added to `.git/info/exclude`. Anywhere under the repos dir the globs would find it as another repo. `gh pr checkout` runs inside it, and a failed checkout removes it again.
+  - The results (`prActionDoneResult`) are not flowResults: the write has happened wherever the user now is, so the footer reports it anyway.
 
 ## Configuration (`~/.config/prflow.toml`)
 

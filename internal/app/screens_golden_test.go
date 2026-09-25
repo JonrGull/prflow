@@ -337,6 +337,17 @@ func screenCases() []screenCase {
 		screenCase{"view_all_prs_mine", ScreenViewAllPrs, mine},
 		screenCase{"view_all_prs_mine_none", ScreenViewAllPrs, mineNone})
 
+	// A checked merge waits for y, which the footer spells out; then the box
+	// title says it is under way.
+	confirmMerge := populatedModel()
+	confirmMerge.allPRs.entries[0].PR.BaseBranch = "main"
+	confirmMerge.allPRs.pending = &prAction{kind: prMerge, entry: confirmMerge.allPRs.entries[0], method: "SQUASH"}
+	merging := populatedModel()
+	merging.allPRs.running = "merging web-app#101"
+	cases = append(cases,
+		screenCase{"view_all_prs_confirm_merge", ScreenViewAllPrs, confirmMerge},
+		screenCase{"view_all_prs_merging", ScreenViewAllPrs, merging})
+
 	// A three-step chain. Nothing else in the suite leaves the default pair, so
 	// without these two the N-column layout and the derived step descriptions
 	// are only ever exercised at the one width that used to be hardcoded.

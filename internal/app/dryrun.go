@@ -220,6 +220,32 @@ func dryRunAllOpenPRs() allOpenPRsFetchedResult {
 	return allOpenPRsFetchedResult{entries: entries, viewer: "lorenzo", teams: []string{"example/web"}}
 }
 
+// dryRunMergeCheck says what GitHub would about a fixture PR: a failing one is
+// unstable, a draft is a draft, and the rest would merge by squash.
+func dryRunMergeCheck(e allPREntry) github.MergeCheck {
+	time.Sleep(dryRunNormal)
+	check := github.MergeCheck{Status: "CLEAN", HeadSHA: e.PR.HeadSHA, Method: "SQUASH"}
+	switch {
+	case e.PR.IsDraft:
+		check.Status = "DRAFT"
+	case e.CIStatus == "failure":
+		check.Status = "UNSTABLE"
+	}
+	return check
+}
+
+// dryRunFailedRuns is one failed run for each failing fixture check.
+func dryRunFailedRuns(e allPREntry) []github.FailedRun {
+	time.Sleep(dryRunNormal)
+	var runs []github.FailedRun
+	for i, c := range e.PR.StatusCheckRollup {
+		if checkFailed(c) {
+			runs = append(runs, github.FailedRun{ID: uint64(1000 + i), Name: c.WorkflowName})
+		}
+	}
+	return runs
+}
+
 // --- pull -------------------------------------------------------------------
 
 // dryRunPullResult varies the outcome by repo name so the summary screen shows

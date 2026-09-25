@@ -161,6 +161,7 @@ func (m *Model) newEpoch() {
 	m.epoch++
 	m.cancelBatchFetch()
 	m.allPRs.loading = false
+	m.allPRs.checking, m.allPRs.pending = "", nil
 	m.actions.loading = false
 }
 
@@ -220,6 +221,12 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case allPRsRefreshTickMsg:
 		return m.handleAllPRsRefreshTick(msg)
+
+	case prCheckResult:
+		return m.handlePRCheck(msg)
+
+	case prActionDoneResult:
+		return m.handlePRActionDone(msg)
 
 	case mergeCompleteResult:
 		return m.handleMergeCompleteResult(msg)
@@ -303,6 +310,9 @@ func (m *Model) isTextInputActive() bool {
 		return true
 	case ScreenActionsOverview:
 		return m.actions.filterTyping
+	case ScreenViewAllPrs:
+		// A merge or re-run prompt: every key answers it, and only y says yes.
+		return m.allPRs.pending != nil
 	case ScreenBatchRepoSelect:
 		// This list filters as you type, with no mode to enter. Once something
 		// is typed, F ? [ ] belong to the filter; before that they keep

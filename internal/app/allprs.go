@@ -34,6 +34,10 @@ type allPRsState struct {
 	mine   bool            // only the PRs that involve the viewer
 	viewer string          // the signed-in login
 	teams  map[string]bool // the viewer's teams, as lower-case org/team
+
+	checking string    // the PR a merge or re-run is being checked for
+	pending  *prAction // a checked action waiting for y
+	running  string    // the action under way, e.g. "merging web-app#12"
 }
 
 // allPREntry holds a single open PR with its repo and derived status columns
@@ -298,7 +302,16 @@ func (m *Model) selectPR(url string) {
 }
 
 func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if a := m.allPRs.pending; a != nil {
+		m.allPRs.pending = nil
+		if msg.String() == "y" {
+			return m.runPRAction(*a)
+		}
+		return m, nil // any other key cancels, and does nothing else
+	}
 	switch msg.String() {
+	case "m", "R", "w":
+		return m.startPRAction(msg.String())
 	case "q":
 		m.shouldQuit = true
 		return m, tea.Quit
@@ -643,9 +656,17 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 	content := strings.Join(lines, "\n")
 	countStyle := ui.Dim
 	loadingIndicator := ""
-	if m.allPRs.loading {
-		spinStyle := ui.Yellow
-		loadingIndicator = " " + spinStyle.Render(ui.Spinner(m.spinnerFrame)+" refreshing")
+	busy := ""
+	switch {
+	case m.allPRs.running != "":
+		busy = m.allPRs.running
+	case m.allPRs.checking != "":
+		busy = "checking " + m.allPRs.checking
+	case m.allPRs.loading:
+		busy = "refreshing"
+	}
+	if busy != "" {
+		loadingIndicator = " " + ui.Yellow.Render(ui.Spinner(m.spinnerFrame)+" "+busy)
 	}
 	count := fmt.Sprintf("(%d)", len(shown))
 	if m.allPRs.mine {

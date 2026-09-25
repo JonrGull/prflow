@@ -178,6 +178,9 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 	},
 
 	ScreenViewAllPrs: func(m Model) []keyHint {
+		if a := m.allPRs.pending; a != nil {
+			return []keyHint{{"y", a.prompt(), ui.ColorGreen}, {"Any key", "Cancel", ui.ColorYellow}}
+		}
 		auto := keyHint{"a", toggleLabel("Auto-refresh", m.allPRs.autoRefresh), ui.ColorBlue}
 		mine := keyHint{"@", toggleLabel("Mine", m.allPRs.mine), ui.ColorCyan}
 		if len(m.allPRs.entries) == 0 {
@@ -194,6 +197,9 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 			hintNavigate,
 			hintOpen,
 			mine,
+			{"m", "Merge", ui.ColorGreen},
+			{"R", "Re-run failed", ui.ColorOrange},
+			{"w", "Worktree", ui.ColorMagenta},
 			hintRefresh,
 			auto,
 			{"s", sortLabel, ui.ColorBlue},

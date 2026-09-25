@@ -85,7 +85,11 @@ Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
 - **View/Merge PRs**: See open release PRs and merge them
 - **All open PRs**: Every open PR across the repos, with its comments, review,
   CI, preview and E2E state. `@` narrows it to yours: PRs you wrote, reviewed,
-  or were asked to review, directly or through a team
+  or were asked to review, directly or through a team. On the highlighted PR,
+  `m` merges it once GitHub says it can, `R` re-runs its failed Actions runs,
+  and `w` checks it out into its own worktree (`<repo>/.worktrees/pr-N`), so
+  your checkout and anything uncommitted in it are left alone. Merging and
+  re-running say what they will do and wait for `y`
 - **GitHub Actions**: Every recent workflow run across the repos in one list,
   with the highlighted run's jobs and failing steps beside it. `Space` watches
   a run so it stays in view while you look at others; refreshes every 5s

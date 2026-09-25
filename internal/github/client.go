@@ -738,14 +738,18 @@ func MergePR(repoPath string, prNumber uint64, headSHA string) error {
 		"--match-head-commit", headSHA,
 		"--delete-branch=false")
 	if err != nil {
-		out := strings.TrimSpace(string(output))
-		if strings.Contains(out, "Head branch was modified") {
-			return fmt.Errorf("new commits were pushed since the list loaded; refresh and review them")
-		}
-		return fmt.Errorf("gh pr merge failed: %s", out)
+		return mergeFailure(output)
 	}
 
 	return nil
+}
+
+func mergeFailure(output []byte) error {
+	out := strings.TrimSpace(string(output))
+	if strings.Contains(out, "Head branch was modified") {
+		return fmt.Errorf("new commits were pushed since the list loaded; refresh and review them")
+	}
+	return fmt.Errorf("gh pr merge failed: %s", out)
 }
 
 // ListWorkflowRuns lists recent workflow runs for a repo
