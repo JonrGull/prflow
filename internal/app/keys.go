@@ -179,8 +179,12 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 
 	ScreenViewAllPrs: func(m Model) []keyHint {
 		auto := keyHint{"a", toggleLabel("Auto-refresh", m.allPRs.autoRefresh), ui.ColorBlue}
+		mine := keyHint{"@", toggleLabel("Mine", m.allPRs.mine), ui.ColorCyan}
 		if len(m.allPRs.entries) == 0 {
 			return []keyHint{hintRefresh, auto, hintBack}
+		}
+		if len(m.shownPRs()) == 0 {
+			return []keyHint{mine, hintRefresh, auto, hintBack}
 		}
 		sortLabel := "Sort: newest"
 		if m.allPRs.sortAsc {
@@ -189,6 +193,7 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 		return []keyHint{
 			hintNavigate,
 			hintOpen,
+			mine,
 			hintRefresh,
 			auto,
 			{"s", sortLabel, ui.ColorBlue},

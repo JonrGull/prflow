@@ -33,9 +33,10 @@ type PrCommit struct {
 
 // ReviewRequest represents a pending review request
 type ReviewRequest struct {
-	Login    string `json:"login"`      // for user reviewers
-	Name     string `json:"name"`       // for team reviewers
-	TypeName string `json:"__typename"` // "User" or "Team"
+	Login    string `json:"login"`        // for user reviewers
+	Name     string `json:"name"`         // for team reviewers
+	Slug     string `json:"combinedSlug"` // for team reviewers: org/team
+	TypeName string `json:"__typename"`   // "User" or "Team"
 }
 
 // GhPr represents GitHub PR info returned from gh CLI

@@ -83,6 +83,9 @@ Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
   configured release chain
 - **Batch PR**: Create release PRs across multiple repos at once
 - **View/Merge PRs**: See open release PRs and merge them
+- **All open PRs**: Every open PR across the repos, with its comments, review,
+  CI, preview and E2E state. `@` narrows it to yours: PRs you wrote, reviewed,
+  or were asked to review, directly or through a team
 - **GitHub Actions**: Every recent workflow run across the repos in one list,
   with the highlighted run's jobs and failing steps beside it. `Space` watches
   a run so it stays in view while you look at others; refreshes every 5s

@@ -197,23 +197,27 @@ func dryRunAllOpenPRs() allOpenPRsFetchedResult {
 
 	commitOld := models.PrCommit{AuthoredDate: "2026-03-09T10:00:00Z"} // before the review -> current
 	commitNew := models.PrCommit{AuthoredDate: "2026-03-11T10:00:00Z"} // after the review  -> stale
-	reviewReq := models.ReviewRequest{Login: "reviewer1"}
+	// The viewer is lorenzo, on the example/web team: #123 is his, #124 asks
+	// for his review, #457 asks his team's, and the other two are not his.
+	reviewReq := models.ReviewRequest{Login: "lorenzo"}
+	teamReq := models.ReviewRequest{Name: "Web", Slug: "example/web"}
 
-	author := struct {
+	type login = struct {
 		Login string `json:"login"`
-	}{Login: "lorenzo"}
+	}
+	lorenzo, maria := login{Login: "lorenzo"}, login{Login: "maria"}
 
 	entries := []allPREntry{
-		{Repo: repos[0], PR: models.GhPr{Number: 123, URL: "https://github.com/example/web/pull/123", Title: "feat: Add dashboard component", State: "open", Author: author, HeadBranch: "dev", BaseBranch: "staging", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, botComment, e2eComment}, Reviews: []models.PrReview{review, review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitOld}}},
-		{Repo: repos[0], PR: models.GhPr{Number: 124, URL: "https://github.com/example/web/pull/124", Title: "staging → main", State: "open", Author: author, IsDraft: true, HeadBranch: "staging", BaseBranch: "main", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, userComment, e2eComment}, Reviews: []models.PrReview{review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitNew}, ReviewRequests: []models.ReviewRequest{reviewReq}}},
-		{Repo: repos[2], PR: models.GhPr{Number: 456, URL: "https://github.com/example/api/pull/456", Title: "fix: Resolve auth timeout", State: "open", Author: author, HeadBranch: "feature/auth", BaseBranch: "dev", StatusCheckRollup: checksFail, Comments: []models.PrComment{userComment}, Reviews: []models.PrReview{review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitNew}}},
-		{Repo: repos[2], PR: models.GhPr{Number: 457, URL: "https://github.com/example/api/pull/457", Title: "dev → staging", State: "open", Author: author, HeadBranch: "dev", BaseBranch: "staging", StatusCheckRollup: checksPending, Comments: nil}},
-		{Repo: repos[3], PR: models.GhPr{Number: 89, URL: "https://github.com/example/workers/pull/89", Title: "chore: Update queue handler", State: "open", Author: author, HeadBranch: "chore/queue", BaseBranch: "main", StatusCheckRollup: checksCI[:1], Comments: nil}},
+		{Repo: repos[0], PR: models.GhPr{Number: 123, URL: "https://github.com/example/web/pull/123", Title: "feat: Add dashboard component", State: "open", Author: lorenzo, HeadBranch: "dev", BaseBranch: "staging", HeadSHA: "a1b2c3d", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, botComment, e2eComment}, Reviews: []models.PrReview{review, review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitOld}}},
+		{Repo: repos[0], PR: models.GhPr{Number: 124, URL: "https://github.com/example/web/pull/124", Title: "staging → main", State: "open", Author: maria, IsDraft: true, HeadBranch: "staging", BaseBranch: "main", HeadSHA: "b2c3d4e", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, userComment, e2eComment}, Reviews: []models.PrReview{review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitNew}, ReviewRequests: []models.ReviewRequest{reviewReq}}},
+		{Repo: repos[2], PR: models.GhPr{Number: 456, URL: "https://github.com/example/api/pull/456", Title: "fix: Resolve auth timeout", State: "open", Author: maria, HeadBranch: "feature/auth", BaseBranch: "dev", HeadSHA: "c3d4e5f", StatusCheckRollup: checksFail, Comments: []models.PrComment{userComment}, Reviews: []models.PrReview{review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitNew}}},
+		{Repo: repos[2], PR: models.GhPr{Number: 457, URL: "https://github.com/example/api/pull/457", Title: "dev → staging", State: "open", Author: maria, HeadBranch: "dev", BaseBranch: "staging", HeadSHA: "d4e5f6a", StatusCheckRollup: checksPending, Comments: nil, ReviewRequests: []models.ReviewRequest{teamReq}}},
+		{Repo: repos[3], PR: models.GhPr{Number: 89, URL: "https://github.com/example/workers/pull/89", Title: "chore: Update queue handler", State: "open", Author: maria, HeadBranch: "chore/queue", BaseBranch: "main", HeadSHA: "e5f6a7b", StatusCheckRollup: checksCI[:1], Comments: nil}},
 	}
 	for i := range entries {
 		enrichAllPREntry(&entries[i])
 	}
-	return allOpenPRsFetchedResult{entries: entries}
+	return allOpenPRsFetchedResult{entries: entries, viewer: "lorenzo", teams: []string{"example/web"}}
 }
 
 // --- pull -------------------------------------------------------------------

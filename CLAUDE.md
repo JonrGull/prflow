@@ -187,7 +187,7 @@ it. The `[[flows]]` stay saved but unused, so switching back restores them.
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (78 cases in
+golden renders of every screen plus its interesting states (80 cases in
 `internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a
@@ -202,6 +202,11 @@ without all three, renders differ between runs, machines and operating systems.
 - **Watched runs** always stay in the list, but the fetch only sees each repo's latest ten runs, so a watched run pushed out of them is fetched by ID (`unfetchedWatched`, `github.GetWorkflowRunByNWO`). Without that it stayed as last seen, running for good.
 - **Filter:** `/` gives the keyboard to the filter (`filterTyping`, which is what `isTextInputActive` reports); Enter keeps the filter and returns the keys, Esc clears it. Esc with a kept filter clears it; otherwise it goes Home the way the tab keys do, keeping the list and the watched runs.
 - **Refresh chains (Actions, All PRs):** start one only with `startActionsRefresh`/`startAllPRsRefresh`, which bump a generation that older ticks no longer match, and only a tick schedules the next tick. Fetch results used to schedule ticks too, so a toggle, a manual refresh or a tab round trip each added a chain and the `gh` calls multiplied. The chain stops when navigating away. Both screens use `r` to refresh now and `a` to toggle auto-refresh.
+
+**All Open PRs** (`ScreenViewAllPrs`, `allprs.go`):
+- **One row per PR:** the fetch goes through `githubRepos`, one entry per GitHub repo. It searched every checkout, so a repo with a worktree under the repos dir had its PRs listed twice, under the worktree's folder name.
+- **Review requests** come from one REST list per repo (`github.PRsAwaitingReviewers`), since GraphQL leaves out bot reviewers. Asking once per PR, one after another, made the screen take 35s.
+- **Mine** (`@`) shows the PRs the viewer wrote, reviewed, or was asked to review, directly or through a team (`involvesViewer`). The fetch returns the viewer and their teams (`github.Viewer`). Everything that acts on "the highlighted PR" goes through `highlightedPR`, and the cursor is held by PR URL across refreshes, sorting and the toggle (`selectPR`): a refresh used to keep the row, so a PR merged above the cursor moved it onto another.
 
 ## Configuration (`~/.config/prflow.toml`)
 

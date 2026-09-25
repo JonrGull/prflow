@@ -172,7 +172,7 @@ const searchRepoChunk = 4
 const prFieldsAll = `
 	number url title state isDraft
 	author { login }
-	headRefName baseRefName isCrossRepository
+	headRefName headRefOid baseRefName isCrossRepository
 	repository { nameWithOwner }
 	statusCheckRollup: commits(last: 1) {
 		nodes {
@@ -203,7 +203,7 @@ const prFieldsAll = `
 		nodes { author { login } state submittedAt }
 	}
 	reviewRequests(last: 10) {
-		nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
+		nodes { requestedReviewer { ... on User { login } ... on Team { name combinedSlug } } }
 	}
 	commits(last: 20) {
 		nodes { commit { authoredDate } }
@@ -370,6 +370,7 @@ type searchPRNode struct {
 		Login string `json:"login"`
 	} `json:"author"`
 	HeadRefName       string `json:"headRefName"`
+	HeadRefOid        string `json:"headRefOid"`
 	BaseRefName       string `json:"baseRefName"`
 	IsCrossRepository bool   `json:"isCrossRepository"`
 	Repository        struct {
@@ -416,8 +417,9 @@ type searchPRNode struct {
 	ReviewRequests struct {
 		Nodes []struct {
 			RequestedReviewer struct {
-				Login string `json:"login"` // User
-				Name  string `json:"name"`  // Team
+				Login        string `json:"login"`        // User
+				Name         string `json:"name"`         // Team
+				CombinedSlug string `json:"combinedSlug"` // Team
 			} `json:"requestedReviewer"`
 		} `json:"nodes"`
 	} `json:"reviewRequests"`
@@ -484,6 +486,7 @@ func (n searchPRNode) toGhPr() models.GhPr {
 		State:      n.State,
 		IsDraft:    n.IsDraft,
 		HeadBranch: n.HeadRefName,
+		HeadSHA:    n.HeadRefOid,
 		BaseBranch: n.BaseRefName,
 
 		IsCrossRepository: n.IsCrossRepository,
@@ -526,6 +529,7 @@ func (n searchPRNode) toGhPr() models.GhPr {
 		pr.ReviewRequests = append(pr.ReviewRequests, models.ReviewRequest{
 			Login: rr.RequestedReviewer.Login,
 			Name:  rr.RequestedReviewer.Name,
+			Slug:  rr.RequestedReviewer.CombinedSlug,
 		})
 	}
 
@@ -568,17 +572,23 @@ func ListPRReviewComments(repoPath string, nwo string) (map[uint64][]models.Inli
 	return result, nil
 }
 
-// HasRequestedReviewers checks if a PR has pending reviewer requests via REST API.
-// GraphQL reviewRequests doesn't include bot reviewers (e.g. Copilot), so we use REST.
-func HasRequestedReviewers(repoPath string, nwo string, prNumber uint64) bool {
-	output, err := run.Output(run.Network, repoPath, "gh", "api",
-		fmt.Sprintf("repos/%s/pulls/%d/requested_reviewers", nwo, prNumber),
-		"--jq", ".users | length + (.teams | length)")
+// PRsAwaitingReviewers lists a repo's open PRs with a review requested. GraphQL
+// reviewRequests leaves out bot reviewers (Copilot), so it asks REST. It used
+// to ask once per PR, one after another, which made All PRs take 35s.
+func PRsAwaitingReviewers(repoPath, nwo string) (map[uint64]bool, error) {
+	output, err := run.Output(run.Network, repoPath, "gh", "api", "--paginate",
+		fmt.Sprintf("repos/%s/pulls?state=open&per_page=100", nwo),
+		"--jq", ".[] | select((.requested_reviewers | length) + (.requested_teams | length) > 0) | .number")
 	if err != nil {
-		return false
+		return nil, fmt.Errorf("gh api pulls failed: %w", err)
 	}
-	count, err := strconv.Atoi(strings.TrimSpace(string(output)))
-	return err == nil && count > 0
+	awaiting := map[uint64]bool{}
+	for _, line := range strings.Fields(string(output)) {
+		if n, err := strconv.ParseUint(line, 10, 64); err == nil {
+			awaiting[n] = true
+		}
+	}
+	return awaiting, nil
 }
 
 // GetRepoNWO returns the "owner/repo" name by parsing the git remote URL.

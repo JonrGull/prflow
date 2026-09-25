@@ -326,6 +326,17 @@ func screenCases() []screenCase {
 	draftRow.allPRs.index = 0
 	cases = append(cases, screenCase{"view_all_prs_draft_highlighted", ScreenViewAllPrs, draftRow})
 
+	// Mine: the count says how many of the whole, and none of yours says so
+	// rather than claiming there are no open PRs.
+	mine := populatedModel()
+	mine.allPRs.viewer, mine.allPRs.mine = "someone", true
+	mine.allPRs.entries[1].PR.Author.Login = "maria"
+	mineNone := mine
+	mineNone.allPRs.viewer = "nobody"
+	cases = append(cases,
+		screenCase{"view_all_prs_mine", ScreenViewAllPrs, mine},
+		screenCase{"view_all_prs_mine_none", ScreenViewAllPrs, mineNone})
+
 	// A three-step chain. Nothing else in the suite leaves the default pair, so
 	// without these two the N-column layout and the derived step descriptions
 	// are only ever exercised at the one width that used to be hardcoded.

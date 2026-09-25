@@ -24,12 +24,16 @@ import (
 // allPRsState is everything the all-open-PRs table owns.
 type allPRsState struct {
 	entries     []allPREntry
-	index       int
+	index       int // cursor into shownPRs
 	scroll      int
 	loading     bool
 	autoRefresh bool // refresh every 60s
 	refreshGen  int  // the live refresh chain; older ticks are ignored
 	sortAsc     bool // true=ascending PR number, false=descending (the default)
+
+	mine   bool            // only the PRs that involve the viewer
+	viewer string          // the signed-in login
+	teams  map[string]bool // the viewer's teams, as lower-case org/team
 }
 
 // allPREntry holds a single open PR with its repo and derived status columns
@@ -50,6 +54,8 @@ type allPREntry struct {
 
 type allOpenPRsFetchedResult struct {
 	entries []allPREntry
+	viewer  string   // the signed-in login
+	teams   []string // the viewer's teams, as org/team
 	err     error
 }
 
@@ -111,18 +117,25 @@ func fetchAllOpenPRsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 			return allOpenPRsFetchedResult{err: err}
 		}
 
-		// Build NWO → repo mapping (git remote parsing, no API calls)
+		// One entry per GitHub repo: a worktree is another checkout of the same
+		// one, and searching it too listed its PRs twice, under its folder name.
 		nwoToRepo := make(map[string]models.RepoInfo)
 		var nwos []string
-		for _, r := range repos {
-			if nwo, err := github.GetRepoNWO(r.Path); err == nil {
-				nwoToRepo[nwo] = r
-				nwos = append(nwos, nwo)
-			}
+		for _, r := range githubRepos(repos) {
+			nwoToRepo[r.NWO] = r.Repo
+			nwos = append(nwos, r.NWO)
 		}
 
-		// Single GraphQL query for ALL open PRs across all repos
+		var viewer string
+		var teams []string
+		viewerDone := make(chan struct{})
+		go func() {
+			defer close(viewerDone)
+			viewer, teams, _ = github.Viewer()
+		}()
+
 		prsByRepo, err := github.SearchAllOpenPRs(nwos)
+		<-viewerDone
 		if err != nil {
 			return allOpenPRsFetchedResult{err: err}
 		}
@@ -142,12 +155,7 @@ func fetchAllOpenPRsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 		supplements := parallelMap(prNwos, func(nwo string) supplementResult {
 			repo := nwoToRepo[nwo]
 			comments, _ := github.ListPRReviewComments(repo.Path, nwo)
-			hasReviewers := make(map[uint64]bool)
-			for _, pr := range prsByRepo[nwo] {
-				if len(pr.ReviewRequests) == 0 {
-					hasReviewers[pr.Number] = github.HasRequestedReviewers(repo.Path, nwo, pr.Number)
-				}
-			}
+			hasReviewers, _ := github.PRsAwaitingReviewers(repo.Path, nwo)
 			return supplementResult{nwo: nwo, comments: comments, hasReviewers: hasReviewers}
 		})
 
@@ -187,7 +195,7 @@ func fetchAllOpenPRsCmd(cfg *config.Config, dryRun bool) tea.Cmd {
 		// Sort by repo name, then PR number (sort direction applied in handler)
 		sortAllPREntries(entries, true) // default ascending; handler re-sorts per user pref
 
-		return allOpenPRsFetchedResult{entries: entries}
+		return allOpenPRsFetchedResult{entries: entries, viewer: viewer, teams: teams}
 	}
 }
 
@@ -207,16 +215,23 @@ func (m Model) handleAllOpenPRsFetched(msg allOpenPRsFetchedResult) (tea.Model, 
 
 	// Apply user's sort preference
 	sortAllPREntries(msg.entries, m.allPRs.sortAsc) // default is descending (newest first)
-
-	// If already viewing, swap data in place preserving cursor position
-	if m.screen == ScreenViewAllPrs {
-		m.allPRs.entries = msg.entries
-		if m.allPRs.index >= len(m.allPRs.entries) {
-			m.allPRs.index = len(m.allPRs.entries) - 1
-			if m.allPRs.index < 0 {
-				m.allPRs.index = 0
-			}
+	if msg.viewer != "" {
+		m.allPRs.viewer = msg.viewer
+		m.allPRs.teams = map[string]bool{}
+		for _, t := range msg.teams {
+			m.allPRs.teams[strings.ToLower(t)] = true
 		}
+	}
+
+	// If already viewing, swap data in place, the cursor staying on its PR
+	if m.screen == ScreenViewAllPrs {
+		prev, hadPrev := m.highlightedPR()
+		m.allPRs.entries = msg.entries
+		m.allPRs.index = min(m.allPRs.index, max(len(m.shownPRs())-1, 0))
+		if hadPrev {
+			m.selectPR(prev.PR.URL)
+		}
+		m.keepAllPRsCursorVisible()
 		return m, nil
 	}
 
@@ -225,6 +240,61 @@ func (m Model) handleAllOpenPRsFetched(msg allOpenPRsFetchedResult) (tea.Model, 
 	m.allPRs.scroll = 0
 	m.screen = ScreenViewAllPrs
 	return m, nil
+}
+
+// involvesViewer reports a PR the viewer wrote, reviewed, or was asked to
+// review, directly or through a team.
+func (m Model) involvesViewer(e allPREntry) bool {
+	me := m.allPRs.viewer
+	if me == "" {
+		return false
+	}
+	if strings.EqualFold(e.PR.Author.Login, me) {
+		return true
+	}
+	for _, r := range e.PR.ReviewRequests {
+		if strings.EqualFold(r.Login, me) || m.allPRs.teams[strings.ToLower(r.Slug)] {
+			return true
+		}
+	}
+	for _, r := range e.PR.LatestReviews {
+		if strings.EqualFold(r.Author.Login, me) {
+			return true
+		}
+	}
+	return false
+}
+
+// shownPRs are the entries the table lists: all of them, or the viewer's.
+func (m Model) shownPRs() []allPREntry {
+	if !m.allPRs.mine {
+		return m.allPRs.entries
+	}
+	var shown []allPREntry
+	for _, e := range m.allPRs.entries {
+		if m.involvesViewer(e) {
+			shown = append(shown, e)
+		}
+	}
+	return shown
+}
+
+func (m Model) highlightedPR() (allPREntry, bool) {
+	shown := m.shownPRs()
+	if m.allPRs.index < 0 || m.allPRs.index >= len(shown) {
+		return allPREntry{}, false
+	}
+	return shown[m.allPRs.index], true
+}
+
+// selectPR moves the cursor to the PR with this URL, if it is shown.
+func (m *Model) selectPR(url string) {
+	for i, e := range m.shownPRs() {
+		if e.PR.URL == url {
+			m.allPRs.index = i
+			return
+		}
+	}
 }
 
 func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -237,15 +307,19 @@ func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.allPRs.index--
 		}
 	case "down", "j":
-		if m.allPRs.index < len(m.allPRs.entries)-1 {
+		if m.allPRs.index < len(m.shownPRs())-1 {
 			m.allPRs.index++
 		}
 	case "o":
-		if m.allPRs.index < len(m.allPRs.entries) {
-			entry := m.allPRs.entries[m.allPRs.index]
-			if entry.PR.URL != "" {
-				m.openInBrowser(entry.PR.URL)
-			}
+		if e, ok := m.highlightedPR(); ok && e.PR.URL != "" {
+			m.openInBrowser(e.PR.URL)
+		}
+	case "@":
+		prev, hadPrev := m.highlightedPR()
+		m.allPRs.mine = !m.allPRs.mine
+		m.allPRs.index, m.allPRs.scroll = 0, 0
+		if hadPrev {
+			m.selectPR(prev.PR.URL)
 		}
 	case "r":
 		// An explicit refresh should also pick up repos added on disk.
@@ -259,8 +333,12 @@ func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	case "s":
+		prev, hadPrev := m.highlightedPR()
 		m.allPRs.sortAsc = !m.allPRs.sortAsc
 		sortAllPREntries(m.allPRs.entries, m.allPRs.sortAsc)
+		if hadPrev {
+			m.selectPR(prev.PR.URL)
+		}
 	case "esc":
 		m.allPRs.entries = nil
 		m.allPRs.index = 0
@@ -268,7 +346,7 @@ func (m Model) handleViewAllPrsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.allPRs.loading = false
 		m.allPRs.autoRefresh = false
 		m.screen = ScreenMainMenu
-		m.menuIndex = 0
+		m.menuIndex, _ = m.startRow(ui.TabAllPRs)
 		return m, nil
 	}
 	m.keepAllPRsCursorVisible()
@@ -305,7 +383,7 @@ func allPRsRows(availableHeight int) int {
 // renderer counts: a blank line between repos, then the repo's header.
 func (m Model) allPRsLineOf(index int) (line int, firstInRepo bool) {
 	lastRepo := ""
-	for i, entry := range m.allPRs.entries {
+	for i, entry := range m.shownPRs() {
 		first := entry.Repo.DisplayName != lastRepo
 		if first {
 			if lastRepo != "" {
@@ -356,9 +434,13 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 	contentWidth := m.contentWidth()
 	boxWidth := contentWidth - 10
 
-	if len(m.allPRs.entries) == 0 {
-		emptyStyle := ui.Dim
-		content := "\n" + emptyStyle.Render("  No open PRs found across configured repos.") + "\n"
+	shown := m.shownPRs()
+	if len(shown) == 0 {
+		content := "\n" + ui.Dim.Render("  No open PRs found across configured repos.") + "\n"
+		if m.allPRs.mine && len(m.allPRs.entries) > 0 {
+			content = "\n" + ui.Dim.Render(fmt.Sprintf("  None of the %d open PRs are yours or have you as a reviewer.", len(m.allPRs.entries))) +
+				"\n" + ui.Dim.Render("  Press @ to show them all.") + "\n"
+		}
 		return ui.ColumnBox(content, " All Open PRs ", ui.ColorBlue, true, boxWidth, availableHeight)
 	}
 
@@ -406,7 +488,7 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 
 	lastRepo := ""
 	lineIdx := 0
-	for i, entry := range m.allPRs.entries {
+	for i, entry := range shown {
 		// Group header when repo changes
 		if entry.Repo.DisplayName != lastRepo {
 			if lastRepo != "" {
@@ -565,7 +647,11 @@ func (m Model) renderViewAllPrsWithHeight(availableHeight int) string {
 		spinStyle := ui.Yellow
 		loadingIndicator = " " + spinStyle.Render(ui.Spinner(m.spinnerFrame)+" refreshing")
 	}
-	boxTitle := fmt.Sprintf(" All Open PRs %s%s", countStyle.Render(fmt.Sprintf("(%d)", len(m.allPRs.entries))), loadingIndicator)
+	count := fmt.Sprintf("(%d)", len(shown))
+	if m.allPRs.mine {
+		count = fmt.Sprintf("(%d of %d · mine)", len(shown), len(m.allPRs.entries))
+	}
+	boxTitle := fmt.Sprintf(" All Open PRs %s%s", countStyle.Render(count), loadingIndicator)
 
 	return ui.ColumnBox(content, boxTitle, ui.ColorBlue, true, boxWidth, availableHeight)
 }
