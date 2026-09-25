@@ -698,7 +698,7 @@ func (m Model) renderActionsRow(e actionsEntry, cols actionsColumns, width int, 
 }
 
 // truncateStart cuts s from the front: repos that share a prefix, like
-// attuned.charts and attuned.core, differ at the end.
+// acme.charts and acme.core, differ at the end.
 func truncateStart(s string, width int) string {
 	if lipgloss.Width(s) <= width {
 		return s

@@ -35,9 +35,9 @@ func TestActionsListIsOneLinePerRun(t *testing.T) {
 }
 
 // Repos in one org share a prefix, so cutting the end of the name left every
-// row reading "attuned.marketi…" or "attuned.resonan…".
+// row reading "acme-org.marketi…" or "acme-org.billing…".
 func TestActionsRepoNamesKeepTheirEnd(t *testing.T) {
-	if got := truncateStart("attuned.marketing_site", 15); got != "…marketing_site" {
+	if got := truncateStart("acme-org.marketing_site", 15); got != "…marketing_site" {
 		t.Errorf("got %q", got)
 	}
 	if got := truncateStart("web", 16); got != "web" {

@@ -197,18 +197,18 @@ func dryRunAllOpenPRs() allOpenPRsFetchedResult {
 
 	commitOld := models.PrCommit{AuthoredDate: "2026-03-09T10:00:00Z"} // before the review -> current
 	commitNew := models.PrCommit{AuthoredDate: "2026-03-11T10:00:00Z"} // after the review  -> stale
-	// The viewer is lorenzo, on the example/web team: #123 is his, #124 asks
-	// for his review, #457 asks his team's, and the other two are not his.
-	reviewReq := models.ReviewRequest{Login: "lorenzo"}
+	// The viewer is sam, on the example/web team: #123 is theirs, #124 asks
+	// for their review, #457 asks their team's, and the other two are not theirs.
+	reviewReq := models.ReviewRequest{Login: "sam"}
 	teamReq := models.ReviewRequest{Name: "Web", Slug: "example/web"}
 
 	type login = struct {
 		Login string `json:"login"`
 	}
-	lorenzo, maria := login{Login: "lorenzo"}, login{Login: "maria"}
+	sam, maria := login{Login: "sam"}, login{Login: "maria"}
 
 	entries := []allPREntry{
-		{Repo: repos[0], PR: models.GhPr{Number: 123, URL: "https://github.com/example/web/pull/123", Title: "feat: Add dashboard component", State: "open", Author: lorenzo, HeadBranch: "dev", BaseBranch: "staging", HeadSHA: "a1b2c3d", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, botComment, e2eComment}, Reviews: []models.PrReview{review, review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitOld}}},
+		{Repo: repos[0], PR: models.GhPr{Number: 123, URL: "https://github.com/example/web/pull/123", Title: "feat: Add dashboard component", State: "open", Author: sam, HeadBranch: "dev", BaseBranch: "staging", HeadSHA: "a1b2c3d", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, botComment, e2eComment}, Reviews: []models.PrReview{review, review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitOld}}},
 		{Repo: repos[0], PR: models.GhPr{Number: 124, URL: "https://github.com/example/web/pull/124", Title: "staging → main", State: "open", Author: maria, IsDraft: true, HeadBranch: "staging", BaseBranch: "main", HeadSHA: "b2c3d4e", StatusCheckRollup: checksCI, Comments: []models.PrComment{userComment, userComment, e2eComment}, Reviews: []models.PrReview{review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitNew}, ReviewRequests: []models.ReviewRequest{reviewReq}}},
 		{Repo: repos[2], PR: models.GhPr{Number: 456, URL: "https://github.com/example/api/pull/456", Title: "fix: Resolve auth timeout", State: "open", Author: maria, HeadBranch: "feature/auth", BaseBranch: "dev", HeadSHA: "c3d4e5f", StatusCheckRollup: checksFail, Comments: []models.PrComment{userComment}, Reviews: []models.PrReview{review, review}, LatestReviews: []models.PrReview{latestReview}, Commits: []models.PrCommit{commitNew}}},
 		{Repo: repos[2], PR: models.GhPr{Number: 457, URL: "https://github.com/example/api/pull/457", Title: "dev → staging", State: "open", Author: maria, HeadBranch: "dev", BaseBranch: "staging", HeadSHA: "d4e5f6a", StatusCheckRollup: checksPending, Comments: nil, ReviewRequests: []models.ReviewRequest{teamReq}}},
@@ -217,7 +217,7 @@ func dryRunAllOpenPRs() allOpenPRsFetchedResult {
 	for i := range entries {
 		enrichAllPREntry(&entries[i])
 	}
-	return allOpenPRsFetchedResult{entries: entries, viewer: "lorenzo", teams: []string{"example/web"}}
+	return allOpenPRsFetchedResult{entries: entries, viewer: "sam", teams: []string{"example/web"}}
 }
 
 // dryRunMergeCheck says what GitHub would about a fixture PR: a failing one is
@@ -256,9 +256,9 @@ func dryRunShipped() shippedFetchedResult {
 // dryRunShippedEntries is three repos' releases: date tags several times a
 // day, semver tags, and a rollback, which is billing's newest release.
 func dryRunShippedEntries() []shippedEntry {
-	repos := dryRunHomeRepos()
+	repos, now := dryRunHomeRepos(), timeNow()
 	rel := func(tag string, age time.Duration) github.Release {
-		return github.Release{Tag: tag, SHA: "sha-" + tag, PublishedAt: timeNow().Add(-age), URL: "https://github.com/example/releases/tag/" + tag}
+		return github.Release{Tag: tag, SHA: "sha-" + tag, PublishedAt: now.Add(-age), URL: "https://github.com/example/releases/tag/" + tag}
 	}
 	byRepo := map[string][]github.Release{
 		repos[0].NWO: {rel("v2026.09.24.02", 2*time.Hour), rel("v2026.09.24.01", 26*time.Hour), rel("v2026.09.23.01", 50*time.Hour)},
@@ -283,19 +283,19 @@ func dryRunReleaseDiffFor(tag string) github.ReleaseDiff {
 	switch tag {
 	case "v2026.09.24.02":
 		return github.ReleaseDiff{Status: "AHEAD", ShippedTotal: 4, Shipped: []github.ShippedCommit{
-			commit("[ATT-7810] fix: keep the filter after a refresh (#298)", pr(298, "[ATT-7810] fix: keep the filter after a refresh")),
+			commit("[PROJ-1242] fix: keep the filter after a refresh (#298)", pr(298, "[PROJ-1242] fix: keep the filter after a refresh")),
 			commit("chore: update CHANGELOG [skip ci]", nil),
 			commit("chore(deps): update playwright (#302)", pr(302, "chore(deps): update playwright")),
-			commit("feat: show the team roster on the dashboard (ATT-7806) (#301)", pr(301, "feat: show the team roster on the dashboard (ATT-7806)")),
+			commit("feat: show the team roster on the dashboard (PROJ-1240) (#301)", pr(301, "feat: show the team roster on the dashboard (PROJ-1240)")),
 		}}
 	case "v1.9.0":
 		return github.ReleaseDiff{Status: "BEHIND", RemovedTotal: 2, Removed: []github.ShippedCommit{
-			commit("ATT-7790 Charge in the customer's currency (#57)", pr(57, "ATT-7790 Charge in the customer's currency")),
+			commit("PROJ-1238 Charge in the customer's currency (#57)", pr(57, "PROJ-1238 Charge in the customer's currency")),
 			commit("Bump version to 1.9.1", nil),
 		}}
 	}
 	return github.ReleaseDiff{Status: "AHEAD", ShippedTotal: 1, Shipped: []github.ShippedCommit{
-		commit("ATT-7799 fix: retry the webhook once (#120)", pr(120, "ATT-7799 fix: retry the webhook once")),
+		commit("PROJ-1241 fix: retry the webhook once (#120)", pr(120, "PROJ-1241 fix: retry the webhook once")),
 	}}
 }
 

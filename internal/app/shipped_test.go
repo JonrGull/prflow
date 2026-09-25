@@ -49,8 +49,8 @@ func TestSummarizeGroupsCommitsByPR(t *testing.T) {
 	}
 	feature := pr(10, "Add the roster", "feature/roster")
 	commits := []github.ShippedCommit{ // oldest first, as GitHub lists them
-		{Headline: "wip att-7 roster", PR: feature},
-		{Headline: "Add the roster (ATT-12)", PR: feature},
+		{Headline: "wip web-7 roster", PR: feature},
+		{Headline: "Add the roster (WEB-12)", PR: feature},
 		{Headline: "chore: changelog", PR: nil},
 		{Headline: "Merge dev into staging", PR: pr(11, "dev → staging", "dev")},
 		{Headline: "Fix it", PR: pr(12, "PROJ-3 Fix it", "fix/it")},
@@ -66,7 +66,7 @@ func TestSummarizeGroupsCommitsByPR(t *testing.T) {
 	if len(s.loose) != 1 || s.loose[0].Headline != "chore: changelog" {
 		t.Errorf("commits without a PR = %+v", s.loose)
 	}
-	if want := []string{"ATT-12", "ATT-7", "PROJ-3"}; !reflect.DeepEqual(s.tickets, want) {
+	if want := []string{"PROJ-3", "WEB-12", "WEB-7"}; !reflect.DeepEqual(s.tickets, want) {
 		t.Errorf("tickets = %v, want %v", s.tickets, want)
 	}
 }
@@ -77,9 +77,9 @@ func TestShippedMarkdown(t *testing.T) {
 	s := shippedSummary{
 		prs:     []github.ShippedPR{{Number: 7, Title: "Add it", URL: "https://github.com/acme/web/pull/7"}},
 		loose:   []github.ShippedCommit{{Headline: "Bump"}},
-		tickets: []string{"ATT-1"},
+		tickets: []string{"PROJ-1"},
 	}
-	want := "**web v2** (since v1)\n- [#7](https://github.com/acme/web/pull/7) Add it\n- Bump\n\nTickets: ATT-1"
+	want := "**web v2** (since v1)\n- [#7](https://github.com/acme/web/pull/7) Add it\n- Bump\n\nTickets: PROJ-1"
 	if got := shippedMarkdown(e, s); got != want {
 		t.Errorf("markdown =\n%s\nwant\n%s", got, want)
 	}
