@@ -19,10 +19,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 
 /* left rail */
 #rail{position:absolute;left:64px;top:70px;width:500px;height:940px}
-.brand{display:flex;align-items:center;gap:16px}
-.mark{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--a1),var(--a2));display:grid;place-items:center;box-shadow:0 10px 40px rgba(139,92,246,.45)}
-.mark svg{width:26px;height:26px}
-.word{font-size:44px;font-weight:800;letter-spacing:-1.5px}
+.brand{display:block;width:210px}
 .tag{margin-top:14px;font-size:19px;color:var(--dim);line-height:1.45;max-width:440px}
 #chapters{margin-top:56px;display:flex;flex-direction:column;gap:6px}
 .ch{display:flex;align-items:center;gap:16px;padding:11px 16px;border-radius:12px;font-size:21px;color:var(--faint);transition:none;position:relative}
@@ -45,8 +42,8 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 
 /* intro / outro */
 .card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
-.card .word{font-size:128px;letter-spacing:-5px;background:linear-gradient(90deg,#fff 20%,#c4b5fd 60%,#67e8f9);-webkit-background-clip:text;color:transparent}
-.card .line{margin-top:10px;font-size:32px;color:#aab2c5}
+.card .logo{width:600px}
+.card .line{margin-top:34px;font-size:32px;color:#aab2c5}
 .chain{margin-top:54px;display:flex;align-items:center;gap:0}
 .pill{font-family:JBM,monospace;font-size:28px;font-weight:700;padding:12px 26px;border-radius:999px;border:2px solid;background:rgba(255,255,255,.03)}
 .arrow{width:110px;height:2px;margin:0 14px;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,.7));position:relative;transform-origin:0 50%}
@@ -59,7 +56,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 <div id="bg"></div><div id="grid"></div>
 
 <div id="rail">
-  <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/><path d="M6 8.4v7.2M8.2 6.8c5 .6 7.5 2.2 8 3.3"/></svg></div><div class="word">prflow</div></div>
+  <img class="brand" src="../logo-on-dark.svg" alt="prflow">
   <div class="tag">Release PRs across every repo: opened, reviewed and merged from one terminal.</div>
   <div id="chapters"></div>
   <div id="caption"></div>
@@ -73,12 +70,12 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 </div>
 
 <div class="card" id="intro">
-  <div class="word">prflow</div>
+  <img class="logo" src="../logo-on-dark.svg" alt="prflow">
   <div class="line">Ship the release train across every repo.</div>
   <div class="chain" id="chain"></div>
 </div>
 <div class="card" id="outro">
-  <div class="word" style="font-size:112px">prflow</div>
+  <img class="logo" src="../logo-on-dark.svg" alt="prflow" style="width:520px">
   <div class="line">Open, review and merge release PRs everywhere at once.</div>
   <div class="cmd">curl -fsSL https://raw.githubusercontent.com/JonrGull/prflow/main/install.sh | <b>bash</b></div>
   <div class="url">github.com/JonrGull/prflow</div>
