@@ -14,17 +14,17 @@ import (
 
 // A match cut out of a longer word is not a ticket.
 func TestExtractTicketsNeedsWordBoundaries(t *testing.T) {
-	att := regexp.MustCompile(`(?i:ATT-)[0-9]+`)
+	ops := regexp.MustCompile(`(?i:OPS-)[0-9]+`)
 	cases := []struct {
 		re   *regexp.Regexp
 		text string
 		want []string
 	}{
-		{att, "Merge branch 'matt-12-login'", nil}, // MATT-12 is not ATT-12
-		{att, "see ATT-12abc", nil},
-		{att, "Merge pull request #4 from acme/jon/att-123-fix", []string{"ATT-123"}},
-		{att, "(ATT-1) and ATT-2, ATT-3.", []string{"ATT-1", "ATT-2", "ATT-3"}},
-		{att, "ATT-7_login", []string{"ATT-7"}},
+		{ops, "Merge branch 'stops-12-login'", nil}, // STOPS-12 is not OPS-12
+		{ops, "see OPS-12abc", nil},
+		{ops, "Merge pull request #4 from acme/jon/ops-123-fix", []string{"OPS-123"}},
+		{ops, "(OPS-1) and OPS-2, OPS-3.", []string{"OPS-1", "OPS-2", "OPS-3"}},
+		{ops, "OPS-7_login", []string{"OPS-7"}},
 		// An edge that is not a letter or digit is never cut.
 		{regexp.MustCompile(`#[0-9]+`), "fixes PR#12 and #13", []string{"#12", "#13"}},
 	}
@@ -41,9 +41,9 @@ func TestExtractTicketsNeedsWordBoundaries(t *testing.T) {
 
 // The screen highlights exactly what goes into the PR.
 func TestHighlightTicketsMatchesExtraction(t *testing.T) {
-	re := regexp.MustCompile(`(?i:ATT-)[0-9]+`)
-	got := HighlightTickets("MATT-1 fixes ATT-2", re, func(s string) string { return "[" + s + "]" })
-	if got != "MATT-1 fixes [ATT-2]" {
+	re := regexp.MustCompile(`(?i:OPS-)[0-9]+`)
+	got := HighlightTickets("STOPS-1 fixes OPS-2", re, func(s string) string { return "[" + s + "]" })
+	if got != "STOPS-1 fixes [OPS-2]" {
 		t.Errorf("got %q", got)
 	}
 	if strings.Contains(HighlightTickets("x", nil, strings.ToUpper), "X") {

@@ -179,15 +179,15 @@ func TestValidateFlows(t *testing.T) {
 }
 
 // Letters typed into the pattern match either case, so a real prefix still
-// finds the key in a lower-case branch name (Linear's jon/att-123-fix). A
+// finds the key in a lower-case branch name (Linear's jon/ops-123-fix). A
 // class matches only what it says, and (?i) opts the whole pattern in.
 func TestTicketPatternCase(t *testing.T) {
 	cases := []struct {
 		pattern, text string
 		want          bool
 	}{
-		{"ATT-[0-9]+", "ATT-123", true},
-		{"ATT-[0-9]+", "merge jon/att-123-fix", true},
+		{"OPS-[0-9]+", "OPS-123", true},
+		{"OPS-[0-9]+", "merge jon/ops-123-fix", true},
 		{"[A-Z][A-Z0-9]+-[0-9]+", "ACME-1234", true},
 		{"[A-Z][A-Z0-9]+-[0-9]+", "fixes acme-1234", false},
 		{"[A-Z][A-Z0-9]+-[0-9]+", "bump node-18", false},

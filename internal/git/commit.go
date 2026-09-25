@@ -15,7 +15,7 @@ import (
 )
 
 // findTickets returns where ticketRegex matches in text, skipping any match
-// cut out of a longer word: MATT-12 is not ATT-12, and PROJ-12abc is not
+// cut out of a longer word: STOPS-12 is not OPS-12, and PROJ-12abc is not
 // PROJ-12. A match edge only counts as cut when a letter or digit sits on
 // both sides of it, so a pattern starting with # still matches in "see #12".
 func findTickets(text string, ticketRegex *regexp.Regexp) [][]int {

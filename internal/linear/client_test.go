@@ -106,16 +106,16 @@ func TestQATaggingSubscribesTheQAPerson(t *testing.T) {
 func TestTicketTitlesSurviveAMissingTicket(t *testing.T) {
 	seen := fakeLinear(t, map[string]string{
 		// INT-1 was not asked for: kept out even if a filter lets it through.
-		"issues(": `{"t0":{"nodes":[{"identifier":"ATT-1","title":"Fix login"},{"identifier":"INT-1","title":"Other"}]}}`,
+		"issues(": `{"t0":{"nodes":[{"identifier":"OPS-1","title":"Fix login"},{"identifier":"INT-1","title":"Other"}]}}`,
 	})
 
-	titles := FetchTicketTitles("key", []string{"ATT-1", "ATT-999999", "#12"})
+	titles := FetchTicketTitles("key", []string{"OPS-1", "OPS-999999", "#12"})
 
-	if titles["ATT-1"] != "Fix login" || len(titles) != 1 {
-		t.Errorf("titles = %v, want just ATT-1's", titles)
+	if titles["OPS-1"] != "Fix login" || len(titles) != 1 {
+		t.Errorf("titles = %v, want just OPS-1's", titles)
 	}
 	b, _ := json.Marshal((*seen)[0].Variables)
-	if !strings.Contains(string(b), `"ATT"`) || !strings.Contains(string(b), "999999") || strings.Contains(string(b), "#12") {
-		t.Errorf("filter = %s, want both ATT keys and not the non-Linear #12", b)
+	if !strings.Contains(string(b), `"OPS"`) || !strings.Contains(string(b), "999999") || strings.Contains(string(b), "#12") {
+		t.Errorf("filter = %s, want both OPS keys and not the non-Linear #12", b)
 	}
 }

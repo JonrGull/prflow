@@ -359,8 +359,8 @@ func (c *Config) compileRegex() error {
 }
 
 // compileTicketPattern makes letters written literally match either case,
-// while a class like [A-Z] matches only what it says. So ATT-[0-9]+ still
-// finds att-123 in a lowercase branch name, but the generic default no longer
+// while a class like [A-Z] matches only what it says. So OPS-[0-9]+ still
+// finds ops-123 in a lowercase branch name, but the generic default no longer
 // turns utf-8 or node-18 into tickets. The whole pattern used to be compiled
 // case-insensitively, which made [A-Z] mean [A-Za-z]. (?i) in the pattern
 // still makes all of it case-insensitive.

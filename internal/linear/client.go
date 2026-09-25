@@ -240,7 +240,7 @@ func FetchTicketTitles(apiKey string, identifiers []string) map[string]string {
 	return titles
 }
 
-// splitIdentifier splits "ATT-123" into its team key and number.
+// splitIdentifier splits "OPS-123" into its team key and number.
 func splitIdentifier(id string) (key string, number int, ok bool) {
 	i := strings.LastIndexByte(id, '-')
 	if i <= 0 {
