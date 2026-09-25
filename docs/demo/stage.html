@@ -28,7 +28,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 .ch{display:flex;align-items:center;gap:16px;padding:11px 16px;border-radius:12px;font-size:21px;color:var(--faint);transition:none;position:relative}
 .ch .n{font-family:JBM,monospace;font-size:15px;width:28px;color:inherit;opacity:.9}
 .ch .bar{position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:linear-gradient(var(--a1),var(--a2));opacity:0}
-#caption{position:absolute;left:0;top:560px;width:480px;font-size:33px;font-weight:700;line-height:1.22;letter-spacing:-.4px}
+#caption{position:absolute;left:0;top:612px;width:480px;font-size:33px;font-weight:700;line-height:1.22;letter-spacing:-.4px}
 #caption .sub{display:block;margin-top:14px;font-size:17px;font-weight:500;color:var(--dim);letter-spacing:0}
 #keys{position:absolute;left:0;bottom:0;display:flex;gap:10px;align-items:flex-end;height:64px}
 .key{font-family:JBM,monospace;font-size:20px;font-weight:700;padding:10px 16px;border-radius:11px;background:linear-gradient(#262c3b,#171b25);border:1px solid #3b4357;border-bottom-width:4px;color:#f1f4fa;box-shadow:0 8px 24px rgba(0,0,0,.35);white-space:nowrap}
@@ -60,7 +60,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 
 <div id="rail">
   <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/><path d="M6 8.4v7.2M8.2 6.8c5 .6 7.5 2.2 8 3.3"/></svg></div><div class="word">prflow</div></div>
-  <div class="tag">Release PRs across every repo — opened, reviewed and merged from one terminal.</div>
+  <div class="tag">Release PRs across every repo: opened, reviewed and merged from one terminal.</div>
   <div id="chapters"></div>
   <div id="caption"></div>
   <div id="keys"></div>
@@ -68,7 +68,7 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 
 <div id="win">
   <div class="tb"><div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div>
-    <div class="title">prflow --dry-run — ~/work/acme</div></div>
+    <div class="title">prflow --dry-run · ~/work/acme</div></div>
   <div id="view"><div id="cam"><div id="t"></div></div><div id="fade"></div></div>
 </div>
 
@@ -90,22 +90,27 @@ html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--b
 const INTRO = 3.4, OUTRO = 4.6;
 const CHAPTERS = [
   ["Home",         ["The whole release on one screen"]],
-  ["Pick repos",   ["Pick the release step", "Choose repos — commits load in the background"]],
+  ["Pick repos",   ["Pick the release step", "Choose repos while commits load in the background"]],
   ["Review",       ["Tickets are pulled straight from the commits", "Review every change before anything is created"]],
   ["Create PRs",   ["Created or updated in every repo, one at a time"]],
   ["Merge",        ["Every open release PR, one column per step", "Merge the whole step at once"]],
-  ["Track",        ["Reviews, CI, previews and E2E at a glance"]],
+  ["Track",        ["Reviews, CI, previews and E2E at a glance", "Narrow it to the PRs that need you", "Merge, re-run or check out from the list"]],
   ["Actions",      ["Watch GitHub Actions live"]],
+  ["Shipped",      ["See what every release shipped", "Rollbacks say what they took out"]],
 ];
 const SUBS = {
   "One TUI for your whole release train": "dev → staging → main, or whatever chain your team uses.",
   "The whole release on one screen": "Commits waiting at each step, PR health, and what is blocked.",
-  "Choose repos — commits load in the background": "Two columns, grouped your way. Nothing waits on the network.",
+  "Choose repos while commits load in the background": "Two columns, grouped your way. Nothing waits on the network.",
   "Review every change before anything is created": "Commits, tickets and which PRs already exist.",
   "Created or updated in every repo, one at a time": "Idempotent: an existing PR is updated, not duplicated.",
   "Merge the whole step at once": "Select a column, confirm, done.",
   "Reviews, CI, previews and E2E at a glance": "Every open PR across every repo, in one table.",
+  "Narrow it to the PRs that need you": "@ keeps the ones you wrote or were asked to review.",
+  "Merge, re-run or check out from the list": "Each says what it will do and waits for y.",
   "Watch GitHub Actions live": "The highlighted run's jobs sit beside the list. Space keeps a run in view.",
+  "See what every release shipped": "Each release's PRs and tickets since the one before it.",
+  "Rollbacks say what they took out": "The PRs and tickets that left, not just a version number.",
 };
 const CHAIN = [["dev", "#22d3ee"], ["staging", "#fbbf24"], ["main", "#a78bfa"]];
 
