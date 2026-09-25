@@ -33,6 +33,7 @@ const (
 	ScreenSettings
 	ScreenFirstRun
 	ScreenListEdit
+	ScreenShipped
 )
 
 func (s Screen) String() string {
@@ -66,6 +67,7 @@ func (s Screen) String() string {
 		"Settings",
 		"FirstRun",
 		"ListEdit",
+		"Shipped",
 	}
 	if int(s) < len(names) {
 		return names[s]

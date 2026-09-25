@@ -95,6 +95,7 @@ var heightAwareScreens = map[Screen]bool{
 	ScreenSettings:        true,
 	ScreenListEdit:        true,
 	ScreenSessionHistory:  true,
+	ScreenShipped:         true,
 }
 
 // Nothing may be wider than the terminal.
@@ -285,6 +286,7 @@ func screenCases() []screenCase {
 		{"empty_view_open_prs", ScreenViewOpenPrs, empty},
 		{"empty_view_all_prs", ScreenViewAllPrs, empty},
 		{"empty_actions_overview", ScreenActionsOverview, empty},
+		{"empty_shipped", ScreenShipped, empty},
 		{"empty_batch_summary", ScreenBatchSummary, empty},
 		{"empty_session_history", ScreenSessionHistory, empty},
 		// The crash case: progress bar with nothing to pull.
@@ -505,6 +507,24 @@ func screenCases() []screenCase {
 		screenCase{"settings_trunk", ScreenSettings, trunkSettings},
 		screenCase{"view_all_prs_trunk", ScreenViewAllPrs, trunkAllPRs},
 	)
+
+	// Shipped: a rollback lists what it took out, and a release still being
+	// compared says so.
+	shippedModel := func() Model {
+		m := populatedModel()
+		_ = m.config.SetTicketPattern(m.config.Tickets.Pattern) // a loaded config's is compiled
+		return m
+	}
+	rollback := shippedModel()
+	rollback.shipped.index = 0
+	rollback.shipped.diffs[rollback.shipped.entries[0].key()] = shippedDiff{diff: ptr(dryRunReleaseDiffFor("v1.9.0"))}
+	comparing := shippedModel()
+	comparing.shipped.index = 2
+	comparing.shipped.diffs[comparing.shipped.entries[2].key()] = shippedDiff{loading: true}
+	cases = append(cases,
+		screenCase{"shipped", ScreenShipped, shippedModel()},
+		screenCase{"shipped_rollback", ScreenShipped, rollback},
+		screenCase{"shipped_comparing", ScreenShipped, comparing})
 
 	// First-run setup has three distinct states, and the two failure ones are
 	// the reason the screen exists at all.
@@ -749,8 +769,17 @@ func populatedModel() Model {
 	}
 	m.allPRs.autoRefresh = true
 
+	// Shipped, on web-app's newest release
+	m.shipped.entries = dryRunShippedEntries()
+	m.shipped.index = 1
+	m.shipped.diffs = map[string]shippedDiff{
+		m.shipped.entries[1].key(): {diff: ptr(dryRunReleaseDiffFor(m.shipped.entries[1].Release.Tag))},
+	}
+
 	return m
 }
+
+func ptr[T any](v T) *T { return &v }
 
 func makeAllPREntry(repo models.RepoInfo, num uint64, title, branch, ci, preview, review string, passed, total, failed int) allPREntry {
 	var pr models.GhPr

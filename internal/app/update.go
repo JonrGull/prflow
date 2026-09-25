@@ -163,6 +163,7 @@ func (m *Model) newEpoch() {
 	m.allPRs.loading = false
 	m.allPRs.checking, m.allPRs.pending = "", nil
 	m.actions.loading = false
+	m.shipped.loading = false
 }
 
 // isBusy reports a screen running a write: creating PRs, merging, pulling,
@@ -271,6 +272,15 @@ func (m Model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actionsJobsFetchedResult:
 		return m.handleActionsJobsFetched(msg)
+
+	case shippedFetchedResult:
+		return m.handleShippedFetched(msg)
+
+	case shippedPreviewMsg:
+		return m.handleShippedPreview(msg)
+
+	case shippedDiffResult:
+		return m.handleShippedDiff(msg)
 
 	case firstRunPreviewResult:
 		return m.handleFirstRunPreview(msg)
@@ -383,6 +393,11 @@ func (m Model) navigateToTab(tab int) (tea.Model, tea.Cmd) {
 			}
 			return m, preview
 		}
+	case ui.TabShipped:
+		if len(m.shipped.entries) > 0 {
+			m.screen = ScreenShipped
+			return m, m.previewRelease()
+		}
 	}
 	// Single always needs fresh repo detection, and Batch has nothing cached.
 	return m.openTab(tab)
@@ -480,6 +495,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFirstRunKey(msg)
 	case ScreenListEdit:
 		return m.handleListEditKey(msg)
+	case ScreenShipped:
+		return m.handleShippedKey(msg)
 	}
 
 	return m, nil
@@ -546,6 +563,7 @@ func (m Model) reset() (tea.Model, tea.Cmd) {
 	m.merge = mergeState{}
 	m.allPRs = allPRsState{}
 	m.actions = actionsState{}
+	m.shipped = shippedState{}
 	m.pull = pullState{}
 	m.qa = qaState{}
 

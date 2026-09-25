@@ -250,3 +250,28 @@ func TestPipelineDrawsOddChains(t *testing.T) {
 		}
 	}
 }
+
+// Start is the one card Home never drops, so it must list every tab it can
+// open. A sixth tab made it one row longer than the 30-row layout's cards, and
+// the last row was cut without anything failing.
+func TestStartCardListsEveryTab(t *testing.T) {
+	for _, trunk := range []bool{false, true} {
+		m := populatedModel()
+		if trunk {
+			m.config.Branching = config.BranchingTrunk
+			m.home.data = dryRunTrunkHomeData()
+		}
+		for _, w := range []int{80, 120} {
+			for h := minTerminalHeight; h <= 60; h++ {
+				m.width, m.height = w, h
+				view := m.View()
+				for _, tab := range m.visibleTabs() {
+					// The description: the name is also a tab in the header.
+					if row := startItems[tab].desc; !strings.Contains(view, row) {
+						t.Errorf("trunk %v at %dx%d: Start has no %q row", trunk, w, h, row)
+					}
+				}
+			}
+		}
+	}
+}

@@ -251,6 +251,19 @@ var dynamicKeyHints = map[Screen]func(Model) []keyHint{
 		return append(hints, keyHint{"/", "Filter", ui.ColorYellow}, hintBack)
 	},
 
+	ScreenShipped: func(m Model) []keyHint {
+		if len(m.shipped.entries) == 0 {
+			return []keyHint{hintRefresh, hintBack}
+		}
+		return []keyHint{
+			hintNavigate,
+			hintOpen,
+			{"c", "Copy as Markdown", ui.ColorBlue},
+			hintRefresh,
+			hintBack,
+		}
+	},
+
 	ScreenFirstRun: func(m Model) []keyHint {
 		if m.firstRun.preview.Ran && len(m.firstRun.preview.Repos) > 0 {
 			return []keyHint{

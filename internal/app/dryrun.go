@@ -246,6 +246,59 @@ func dryRunFailedRuns(e allPREntry) []github.FailedRun {
 	return runs
 }
 
+// --- shipped ----------------------------------------------------------------
+
+func dryRunShipped() shippedFetchedResult {
+	time.Sleep(dryRunLong)
+	return shippedFetchedResult{entries: dryRunShippedEntries()}
+}
+
+// dryRunShippedEntries is three repos' releases: date tags several times a
+// day, semver tags, and a rollback, which is billing's newest release.
+func dryRunShippedEntries() []shippedEntry {
+	repos := dryRunHomeRepos()
+	rel := func(tag string, age time.Duration) github.Release {
+		return github.Release{Tag: tag, SHA: "sha-" + tag, PublishedAt: timeNow().Add(-age), URL: "https://github.com/example/releases/tag/" + tag}
+	}
+	byRepo := map[string][]github.Release{
+		repos[0].NWO: {rel("v2026.09.24.02", 2*time.Hour), rel("v2026.09.24.01", 26*time.Hour), rel("v2026.09.23.01", 50*time.Hour)},
+		repos[1].NWO: {rel("v3.4.1", 5*time.Hour), rel("v3.4.0", 3*24*time.Hour)},
+		repos[2].NWO: {rel("v1.9.0", 30*time.Minute), rel("v1.9.1", 6*time.Hour), rel("v1.8.0", 8*24*time.Hour)},
+	}
+	return shippedEntries(repos[:3], byRepo)
+}
+
+func dryRunReleaseDiff(tag string) github.ReleaseDiff {
+	time.Sleep(dryRunNormal)
+	return dryRunReleaseDiffFor(tag)
+}
+
+func dryRunReleaseDiffFor(tag string) github.ReleaseDiff {
+	pr := func(n uint64, title string) *github.ShippedPR {
+		return &github.ShippedPR{Number: n, Title: title, URL: fmt.Sprintf("https://github.com/example/pull/%d", n), HeadBranch: "feature"}
+	}
+	commit := func(headline string, p *github.ShippedPR) github.ShippedCommit {
+		return github.ShippedCommit{SHA: headline, Headline: headline, PR: p}
+	}
+	switch tag {
+	case "v2026.09.24.02":
+		return github.ReleaseDiff{Status: "AHEAD", ShippedTotal: 4, Shipped: []github.ShippedCommit{
+			commit("[ATT-7810] fix: keep the filter after a refresh (#298)", pr(298, "[ATT-7810] fix: keep the filter after a refresh")),
+			commit("chore: update CHANGELOG [skip ci]", nil),
+			commit("chore(deps): update playwright (#302)", pr(302, "chore(deps): update playwright")),
+			commit("feat: show the team roster on the dashboard (ATT-7806) (#301)", pr(301, "feat: show the team roster on the dashboard (ATT-7806)")),
+		}}
+	case "v1.9.0":
+		return github.ReleaseDiff{Status: "BEHIND", RemovedTotal: 2, Removed: []github.ShippedCommit{
+			commit("ATT-7790 Charge in the customer's currency (#57)", pr(57, "ATT-7790 Charge in the customer's currency")),
+			commit("Bump version to 1.9.1", nil),
+		}}
+	}
+	return github.ReleaseDiff{Status: "AHEAD", ShippedTotal: 1, Shipped: []github.ShippedCommit{
+		commit("ATT-7799 fix: retry the webhook once (#120)", pr(120, "ATT-7799 fix: retry the webhook once")),
+	}}
+}
+
 // --- pull -------------------------------------------------------------------
 
 // dryRunPullResult varies the outcome by repo name so the summary screen shows

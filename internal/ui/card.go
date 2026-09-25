@@ -10,7 +10,7 @@ import (
 // meta on the right), a blank row, the lines, and padding to height. Lines
 // wider than the card are cut, never wrapped, and a line holding a newline is
 // that many rows, so height is exact. A card shorter than 6 rows drops the
-// blank row; CardRows says how many lines fit.
+// blank row, as does one whose lines need it; CardRows says how many fit with it.
 //
 // Every styled span inside ends with a reset, which would punch a hole in the
 // shading; OnBackground puts the panel colour back after each one, so callers
@@ -24,13 +24,15 @@ func Card(title, meta string, lines []string, width, height int) string {
 			head += strings.Repeat(" ", gap) + meta
 		}
 	}
+	var body []string
+	for _, l := range lines {
+		body = append(body, strings.Split(l, "\n")...)
+	}
 	rows := []string{"", head}
-	if height >= 6 {
+	if height >= 6 && len(body) <= CardRows(height) {
 		rows = append(rows, "")
 	}
-	for _, l := range lines {
-		rows = append(rows, strings.Split(l, "\n")...)
-	}
+	rows = append(rows, body...)
 	for len(rows) < height-1 {
 		rows = append(rows, "")
 	}

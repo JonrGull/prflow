@@ -32,9 +32,9 @@ go test ./internal/app -update               # Re-record screen goldens after an
   - `view.go` - The frame every screen draws inside, plus shared render helpers
   - Screens: `mainmenu.go` (the Home dashboard), `single.go` (release step → review → title → create),
     `batch.go`, `merge.go` (open PRs + merging), `allprs.go`, `actions.go`,
-    `pull.go`, `qatag.go`, `settings.go`, `listedit.go`, `firstrun.go`,
+    `pull.go`, `qatag.go`, `settings.go`, `shipped.go`, `listedit.go`, `firstrun.go`,
     `history.go`, `selfupdate.go`, `errorscreen.go`
-  - `screens.go` - Screen enum (29 screens) and AppMode (Single/Batch)
+  - `screens.go` - Screen enum (30 screens) and AppMode (Single/Batch)
   - `keys.go` - Per-screen key hints as data (footer + `?` overlay)
   - `home.go` - The dashboard's data: one fetch, three requests, a pure `buildHomeData`
   - `prstatus.go` - The derived review/CI/preview rules for the all-PRs table
@@ -63,6 +63,8 @@ MainMenu (Home dashboard) → PrTypeSelect → Loading → CommitReview → Titl
 (View PRs) → ViewOpenPrs → MergeConfirmation → Merging → MergeSummary
     ↓
 (Actions) → ActionsOverview (run list and detail, no sub-screens)
+    ↓
+(Shipped) → Shipped (releases and what each shipped, no sub-screens)
 ```
 
 ## Key Patterns
@@ -147,8 +149,11 @@ list. Home is also a tab: `ui.HomeTab` (-1) comes before the first tab in the `[
 - **Cards** are `ui.Card`: shaded, borderless and exactly the size asked.
   lipgloss ends every styled span with a reset, which would punch a hole in the
   shading, so `ui.OnBackground` puts the panel colour back after each one.
-  Below 6 rows a card drops the blank row under its title; `ui.CardRows` says
-  how many lines fit, and each card cuts its own spacing before its content.
+  Below 6 rows, or when its lines need the room, a card drops the blank row
+  under its title; `ui.CardRows` says how many lines fit with it, and each
+  card cuts its own spacing before its content. Start relies on the second:
+  six tabs are a row more than the 30-row layout's cards hold, and the last
+  row was cut (`TestStartCardListsEveryTab`).
 - **Layout** (`renderHome`): two columns from `twoColumnMinWidth`, else
   stacked. When a layout is too tall it tries a tighter one, then drops cards
   (pipeline and the middle row go, Start never does). It is handed
@@ -167,7 +172,7 @@ it. The `[[flows]]` stay saved but unused, so switching back restores them.
   colours by the unused chain; `chainBranches()` follows. `resolveTargets`
   skips the `@default` swap, since a trunk-based repo releases its real default
   branch, and the repo cache key includes the mode.
-- **Tabs have IDs** (`ui.TabSingle` … `ui.TabActions`), and `m.visibleTabs()`
+- **Tabs have IDs** (`ui.TabSingle` … `ui.TabShipped`), and `m.visibleTabs()`
   lists the ones shown: Single, Batch and Release PRs go in trunk mode. A tab's
   ID is never its position. `activeTab` holds an ID; `menuIndex` on Home is a
   Start row, turned into a tab by `visibleTabs()[row]` and back by `startRow`;
@@ -188,7 +193,7 @@ it. The `[[flows]]` stay saved but unused, so switching back restores them.
 **Tests are deliberately narrow.** They gate releases: `.github/workflows/test.yml` (gofmt, vet,
 `go test -race`) runs before `auto-tag.yml` tags a push to main, again in `release.yml`, and on
 pull requests. A push that only touches `*.md` or `docs/` does not release. The suite covers three things:
-golden renders of every screen plus its interesting states (82 cases in
+golden renders of every screen plus its interesting states (86 cases in
 `internal/app/testdata/screens/`, recorded at 120x40 except those in `goldenSizes`), regressions for bugs that actually occurred, and the
 derived PR-status rules in `prstatus.go`. If a render changes intentionally, re-record
 with `go test ./internal/app -update` and *read the diff* — an unexplained change in a
@@ -214,6 +219,14 @@ without all three, renders differ between runs, machines and operating systems.
   - A re-run takes the newest run per workflow and event on the head commit (`github.FailedRunsFor`); an older failure a later run replaced is not what the PR shows.
   - The worktree goes in `<main checkout>/.worktrees/pr-N` (`git.MainWorktree` finds the main one from any worktree), with `/.worktrees/` added to `.git/info/exclude`. Anywhere under the repos dir the globs would find it as another repo. `gh pr checkout` runs inside it, and a failed checkout removes it again.
   - The results (`prActionDoneResult`) are not flowResults: the write has happened wherever the user now is, so the footer reports it anyway.
+
+**Shipped** (`ScreenShipped`, `shipped.go`, a tab in both modes): every repo's GitHub releases, newest first across the repos, with what the highlighted one shipped since the release before it in its repo.
+- **A release is the deploy record.** Resonance publishes one when a prod deploy succeeds. Its tags are claimed before that deploy, which does not always happen, and its prod deployment records come several to a release. So `github.Releases` lists published, non-draft releases, `shippedPerRepo` (10) per repo plus one, so the oldest listed has one to compare with (`shippedEntries`).
+- **The comparison** (`github.CompareReleases`) asks both directions in one request. A rollback's release is behind the one before it, so its commits are `Removed` and show as taken out, tickets included; a diverged pair has both. It is fetched on a rested cursor like a run's jobs (`shippedPreviewMsg`), once per release and commit, since it never changes.
+- **A commit's PR** is the one whose merge commit it is: GitHub associates a commit with every PR that later carried it, a release PR included. Release PRs from the chain's heads are left out of the list (`summarize`), since their commits come with their own PRs.
+- `c` copies the release's PRs and tickets as Markdown (`shippedMarkdown`).
+
+**Adding a tab** is a `ui.Tab*` ID with its `TabNames`, `tabShortNames`, `tabTinyNames` and `TabColors` entries, a `startItems` row, `openTab` and `navigateToTab` cases, and `visibleTabs`. The header sheds long names, then short, then tiny ones before it drops the dry-run badge; six short names did not fit beside it at 60 columns.
 
 ## Configuration (`~/.config/prflow.toml`)
 

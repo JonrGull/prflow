@@ -24,15 +24,15 @@ func trunkModel(screen Screen) Model {
 func TestTrunkTabsSkipTheChain(t *testing.T) {
 	m := trunkModel(ScreenMainMenu)
 	var visited []int
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		m = send(t, m, key("]"))
 		visited = append(visited, m.activeTabForDisplay())
 	}
-	if want := []int{ui.TabAllPRs, ui.TabActions, ui.HomeTab}; !reflect.DeepEqual(visited, want) {
+	if want := []int{ui.TabAllPRs, ui.TabActions, ui.TabShipped, ui.HomeTab}; !reflect.DeepEqual(visited, want) {
 		t.Errorf("] from Home visited %v, want %v", visited, want)
 	}
-	if m = send(t, m, key("[")); m.activeTabForDisplay() != ui.TabActions {
-		t.Errorf("[ from Home went to %d, want Actions", m.activeTabForDisplay())
+	if m = send(t, m, key("[")); m.activeTabForDisplay() != ui.TabShipped {
+		t.Errorf("[ from Home went to %d, want Shipped", m.activeTabForDisplay())
 	}
 	if next, _ := m.navigateToTab(ui.TabSingle); next.(Model).activeTabForDisplay() != m.activeTabForDisplay() {
 		t.Error("navigating to a hidden tab moved")

@@ -62,7 +62,7 @@ func isFullLayoutScreen(s Screen) bool {
 	switch s {
 	case ScreenMainMenu, ScreenLoading, ScreenBatchRepoSelect, ScreenViewOpenPrs, ScreenViewAllPrs,
 		ScreenBatchSummary, ScreenMergeSummary, ScreenCommitReview,
-		ScreenPullProgress, ScreenPullSummary, ScreenActionsOverview:
+		ScreenPullProgress, ScreenPullSummary, ScreenActionsOverview, ScreenShipped:
 		return true
 	}
 	return false
@@ -348,6 +348,7 @@ var screenTitles = map[Screen]string{
 	ScreenQaTagSelect:       "QA tagging",
 	ScreenSettings:          "Settings",
 	ScreenListEdit:          "List editor",
+	ScreenShipped:           "Shipped",
 }
 
 func (m Model) renderContentWithHeight(availableHeight int) string {
@@ -406,6 +407,8 @@ func (m Model) renderContentWithHeight(availableHeight int) string {
 		return m.renderViewAllPrsWithHeight(availableHeight)
 	case ScreenActionsOverview:
 		return m.renderActionsOverviewWithHeight(m.unboxedHeight())
+	case ScreenShipped:
+		return m.renderShippedWithHeight(m.unboxedHeight())
 	case ScreenQaTagSelect:
 		return m.renderQaTagSelect()
 	case ScreenSettings:

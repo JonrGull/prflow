@@ -54,7 +54,7 @@ func (m Model) trunkBased() bool { return m.config != nil && m.config.TrunkBased
 // release along the chain, which trunk-based work does not have.
 func (m Model) visibleTabs() []int {
 	if m.trunkBased() {
-		return []int{ui.TabAllPRs, ui.TabActions}
+		return []int{ui.TabAllPRs, ui.TabActions, ui.TabShipped}
 	}
 	return ui.AllTabs
 }

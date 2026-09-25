@@ -90,6 +90,7 @@ type Model struct {
 	qa       qaState
 	allPRs   allPRsState
 	actions  actionsState
+	shipped  shippedState
 	home     homeState // the dashboard's data; survives reset()
 	settings settingsState
 	list     listState
@@ -244,7 +245,7 @@ func (m Model) needsAnimation() bool {
 	}
 
 	// Any in-flight background work draws a spinner, on whatever screen.
-	if m.allPRs.loading || m.actions.loading || m.settings.looking ||
+	if m.allPRs.loading || m.actions.loading || m.shipped.loading || m.settings.looking ||
 		m.updateCheckInProgress || m.batch.fetchPending > 0 {
 		return true
 	}
@@ -266,6 +267,11 @@ func (m Model) needsAnimation() bool {
 	// These poll and animate per-item status icons for in-progress work.
 	case ScreenActionsOverview, ScreenViewAllPrs:
 		return true
+
+	// The detail pane spins while its comparison loads.
+	case ScreenShipped:
+		e, ok := m.highlightedRelease()
+		return ok && m.shipped.diffs[e.key()].loading
 	}
 
 	return false

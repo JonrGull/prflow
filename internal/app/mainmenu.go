@@ -29,6 +29,7 @@ var startItems = []struct {
 	{"Release PRs", "review and merge", ui.ColorYellow},
 	{"All open PRs", "every PR, every repo", ui.ColorBlue},
 	{"Actions", "workflow runs", ui.ColorOrange},
+	{"Shipped", "what each release shipped", ui.ColorGreen},
 }
 
 func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -51,7 +52,7 @@ func (m Model) handleMainMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		return m.selectMainMenuItem()
-	case "1", "2", "3", "4", "5":
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		// A digit past the last row does nothing; it used to open the row
 		// already selected.
 		idx, ok := numKeyIndex(msg.String(), last+1)
@@ -147,6 +148,11 @@ func (m Model) openTab(tab int) (tea.Model, tea.Cmd) {
 		m.screen = ScreenLoading
 		m.loadingMessage = "Fetching workflow runs..."
 		return m, fetchActionsRunsCmd(m.config, m.dryRun, nil)
+	case ui.TabShipped:
+		m.shipped.loading = true
+		m.screen = ScreenLoading
+		m.loadingMessage = "Fetching releases..."
+		return m, fetchShippedCmd(m.config, m.dryRun)
 	}
 	return m, nil
 }

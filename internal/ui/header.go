@@ -22,19 +22,24 @@ const (
 	TabRelease
 	TabAllPRs
 	TabActions
+	TabShipped
 )
 
 // AllTabs is every tab, in the order the release chain shows them.
-var AllTabs = []int{TabSingle, TabBatch, TabRelease, TabAllPRs, TabActions}
+var AllTabs = []int{TabSingle, TabBatch, TabRelease, TabAllPRs, TabActions, TabShipped}
 
 // TabNames are the labels for the top-level navigation tabs.
-var TabNames = []string{"Single", "Batch", "Release PRs", "All Open PRs", "Actions"}
+var TabNames = []string{"Single", "Batch", "Release PRs", "All Open PRs", "Actions", "Shipped"}
 
 // tabShortNames stand in for TabNames when the full labels do not fit.
-var tabShortNames = []string{"Single", "Batch", "Release", "All PRs", "Actions"}
+var tabShortNames = []string{"Single", "Batch", "Release", "All PRs", "Actions", "Shipped"}
+
+// tabTinyNames are for when even the short names crowd out the dry-run badge:
+// six tabs of them do not fit beside it in a 60-column terminal.
+var tabTinyNames = []string{"One", "Batch", "Rel", "PRs", "Runs", "Ship"}
 
 // TabColors are each tab's accent, used to fill the active one.
-var TabColors = []lipgloss.TerminalColor{ColorCyan, ColorMagenta, ColorYellow, ColorBlue, ColorOrange}
+var TabColors = []lipgloss.TerminalColor{ColorCyan, ColorMagenta, ColorYellow, ColorBlue, ColorOrange, ColorGreen}
 
 // HomeTab is the ActiveTab of the dashboard, drawn as a "Home" tab ahead of
 // the others.
@@ -74,13 +79,14 @@ func RenderHeader(info HeaderInfo, width int) string {
 		tabs = AllTabs
 	}
 	long, short := renderTabs(TabNames, tabs, info.ActiveTab), renderTabs(tabShortNames, tabs, info.ActiveTab)
+	tiny := renderTabs(tabTinyNames, tabs, info.ActiveTab)
 	home := lipgloss.NewStyle().Padding(0, 1).Foreground(ColorDarkGray).Render("Home")
 	if info.ActiveTab == HomeTab {
 		home = lipgloss.NewStyle().Padding(0, 1).Background(ColorLightGreen).Foreground(ColorOnAccent).Bold(true).Render("Home")
 	}
 	// Home goes last among the tabs, just before the badge would.
-	bare := short
-	long, short = home+long, home+short
+	bare, tinyBare := short, tiny
+	long, short, tiny = home+long, home+short, home+tiny
 
 	candidates := [][2]string{
 		{join(brand, long), join(badge, meta)},
@@ -88,8 +94,12 @@ func RenderHeader(info HeaderInfo, width int) string {
 		{join(brand, short), badge},
 		{short, badge},
 		{bare, badge},
+		{tiny, badge},
+		{tinyBare, badge},
 		{short, ""},
 		{bare, ""},
+		{tiny, ""},
+		{tinyBare, ""},
 	}
 	line := ""
 	for _, c := range candidates {

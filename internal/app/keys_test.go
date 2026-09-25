@@ -23,7 +23,7 @@ func hintString(m Model) string {
 
 func TestKeyHintsStatic(t *testing.T) {
 	tests := map[Screen]string{
-		ScreenMainMenu:    "1-5:Select ↑↓:Navigate Enter:Select r:Refresh a:Actions p:Pull o:Settings c:Config u:Update h:History q:Quit",
+		ScreenMainMenu:    "1-6:Select ↑↓:Navigate Enter:Select r:Refresh a:Actions p:Pull o:Settings c:Config u:Update h:History q:Quit",
 		ScreenTitleInput:  "Enter:Submit Esc:Back",
 		ScreenComplete:    "o:Open URL c:Copy URL m:Merge PRs Enter:Done",
 		ScreenPullSummary: "Enter:Done q:Quit",

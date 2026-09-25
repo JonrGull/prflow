@@ -65,7 +65,7 @@ The keys that work almost everywhere:
 | `q` | Quit — except on the error screen, where it goes back |
 | `Ctrl+C` | Quit from anywhere |
 
-Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
+Home only: `1`–`6` open a screen, `r` refresh the dashboard, `a` Actions,
 `p` Pull all, `o` Settings, `c` open config folder, `u` check for updates,
 `h` session history.
 
@@ -93,6 +93,10 @@ Home only: `1`–`5` open a screen, `r` refresh the dashboard, `a` Actions,
 - **GitHub Actions**: Every recent workflow run across the repos in one list,
   with the highlighted run's jobs and failing steps beside it. `Space` watches
   a run so it stays in view while you look at others; refreshes every 5s
+- **Shipped**: Every repo's GitHub releases, newest first, with what each one
+  shipped since the release before it: its PRs, the commits without one, and
+  the tickets they name. A rollback lists what it took out. `c` copies a
+  release as Markdown for release notes
 - **Ticket Extraction**: Automatically extracts ticket IDs from commit messages
 - **Auto-Update**: Checks for updates on startup and prompts to install
 - **Configurable release chain**: Define the steps a release moves through in
