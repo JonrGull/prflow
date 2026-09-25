@@ -1,4 +1,9 @@
-# prflow
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-on-dark.svg">
+    <img alt="prflow" src="docs/logo-on-light.svg" width="260">
+  </picture>
+</h1>
 
 TUI for creating and managing GitHub release PRs across multiple repositories.
 
